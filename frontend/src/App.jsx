@@ -123,45 +123,123 @@
 
 
 
+
+
 import { useEffect, useState } from "react";
+import "./App.css";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Issues from "./pages/Issues";
+import Navbar from "./Navbar";
+import { LocaleProvider } from "./i18n/LocaleContext";
 
-function App() {
+function AppContent() {
     const [token, setToken] = useState(
         localStorage.getItem("civicos_token")
     );
 
+    const [role, setRole] = useState(
+        localStorage.getItem("civicos_role")
+    );
+
     const [path, setPath] = useState(window.location.pathname);
+    const [theme, setTheme] = useState(
+        localStorage.getItem("civicos_theme") === "dark" ? "dark" : "light"
+    );
 
     useEffect(() => {
         const handlePopState = () => {
             setPath(window.location.pathname);
         };
 
+        const handleStorageChange = () => {
+            setToken(localStorage.getItem("civicos_token"));
+            setRole(localStorage.getItem("civicos_role"));
+        };
+
         window.addEventListener("popstate", handlePopState);
+        window.addEventListener("storage", handleStorageChange);
 
         return () => {
             window.removeEventListener("popstate", handlePopState);
+            window.removeEventListener("storage", handleStorageChange);
         };
     }, []);
 
-    const handleLoginSuccess = (newToken) => {
-        setToken(newToken);
-        window.history.pushState({}, "", "/");
-        setPath("/");
+    const navigate = (nextPath) => {
+        if (window.location.pathname !== nextPath) {
+            window.history.pushState({}, "", nextPath);
+        }
+
+        setPath(nextPath);
     };
 
-    if (!token) {
-        return <Login onLoginSuccess={handleLoginSuccess} />;
-    }
+    const handleLoginSuccess = (newToken) => {
+        setToken(newToken || localStorage.getItem("civicos_token"));
+        setRole(localStorage.getItem("civicos_role"));
+        navigate("/");
+    };
 
-    if (path === "/issues") {
-        return <Issues />;
-    }
+    const handleLogout = () => {
+        localStorage.removeItem("civicos_token");
+        localStorage.removeItem("civicos_role");
 
-    return <Dashboard />;
+        setToken(null);
+        setRole(null);
+
+        navigate("/");
+    };
+
+    const toggleTheme = () => {
+        setTheme((currentTheme) => {
+            const nextTheme = currentTheme === "dark" ? "light" : "dark";
+            localStorage.setItem("civicos_theme", nextTheme);
+            return nextTheme;
+        });
+    };
+
+    return (
+        <div className="civicos-shell" data-theme={theme}>
+            {!token ? (
+                <Login
+                    onLoginSuccess={handleLoginSuccess}
+                    theme={theme}
+                    onToggleTheme={toggleTheme}
+                />
+            ) : (
+                <>
+                    <Navbar
+                        role={role}
+                        currentPath={path}
+                        onNavigate={navigate}
+                        onLogout={handleLogout}
+                        theme={theme}
+                        onToggleTheme={toggleTheme}
+                    />
+
+                    {path === "/issues" ? (
+                        <Issues
+                            onNavigate={navigate}
+                            onLogout={handleLogout}
+                        />
+                    ) : (
+                        <Dashboard
+                            onNavigate={navigate}
+                            onLogout={handleLogout}
+                        />
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
+function App() {
+    return (
+        <LocaleProvider>
+            <AppContent />
+        </LocaleProvider>
+    );
 }
 
 export default App;

@@ -1,9 +1,17 @@
 import { useEffect, useState } from "react";
 import api from "../api/axios";
+import {
+    translateStatus,
+    useLocale,
+} from "../i18n/LocaleContext";
 
 function Issues() {
+    const { locale, t } = useLocale();
     const [issues, setIssues] = useState([]);
     const [selectedIssue, setSelectedIssue] = useState(null);
+    const [issueHistory, setIssueHistory] = useState([]);
+    const [issueHistoryLoading, setIssueHistoryLoading] = useState(false);
+    const [issueHistoryError, setIssueHistoryError] = useState("");
     const [assigningIssue, setAssigningIssue] = useState(null);
 
     const [officers, setOfficers] = useState([]);
@@ -264,8 +272,7 @@ function Issues() {
             );
 
             setError(
-                err.response?.data?.message ||
-                "Unable to load issues."
+                t(err.response?.data?.message || "Unable to load issues.")
             );
         } finally {
             setLoading(false);
@@ -335,8 +342,7 @@ function Issues() {
             );
 
             setError(
-                err.response?.data?.message ||
-                "Unable to load issues."
+                t(err.response?.data?.message || "Unable to load issues.")
             );
         } finally {
             setLoading(false);
@@ -407,7 +413,7 @@ function Issues() {
 
         if (!allowedTypes.includes(file.type)) {
             setCreateIssueError(
-                "Only JPEG, PNG and WEBP images are allowed."
+                t("Only JPEG, PNG and WEBP images are allowed.")
             );
 
             event.target.value = "";
@@ -420,7 +426,7 @@ function Issues() {
 
         if (file.size > maxSize) {
             setCreateIssueError(
-                "Image size cannot exceed 5 MB."
+                t("Image size cannot exceed 5 MB.")
             );
 
             event.target.value = "";
@@ -462,28 +468,28 @@ function Issues() {
 
         if (!title) {
             setCreateIssueError(
-                "Please enter an issue title."
+                t("Please enter an issue title.")
             );
             return;
         }
 
         if (!description) {
             setCreateIssueError(
-                "Please enter an issue description."
+                t("Please enter an issue description.")
             );
             return;
         }
 
         if (!issueForm.category) {
             setCreateIssueError(
-                "Please select an issue category."
+                t("Please select an issue category.")
             );
             return;
         }
 
         if (!issueForm.priority) {
             setCreateIssueError(
-                "Please select an issue priority."
+                t("Please select an issue priority.")
             );
             return;
         }
@@ -494,7 +500,7 @@ function Issues() {
             latitude > 90
         ) {
             setCreateIssueError(
-                "Please enter a valid latitude between -90 and 90."
+                t("Please enter a valid latitude between -90 and 90.")
             );
             return;
         }
@@ -505,7 +511,7 @@ function Issues() {
             longitude > 180
         ) {
             setCreateIssueError(
-                "Please enter a valid longitude between -180 and 180."
+                t("Please enter a valid longitude between -180 and 180.")
             );
             return;
         }
@@ -555,7 +561,9 @@ function Issues() {
             resetIssueForm();
 
             setSuccess(
-                `Issue #${createdIssue.id} was reported successfully.`
+                locale === "hi"
+                    ? `समस्या #${createdIssue.id} सफलतापूर्वक दर्ज की गई।`
+                    : `Issue #${createdIssue.id} was reported successfully.`
             );
 
             if (page === 0) {
@@ -570,8 +578,10 @@ function Issues() {
             );
 
             setCreateIssueError(
-                err.response?.data?.message ||
-                "Unable to report this issue. Please try again."
+                t(
+                    err.response?.data?.message ||
+                        "Unable to report this issue. Please try again."
+                )
             );
         } finally {
             setCreatingIssue(false);
@@ -616,11 +626,40 @@ function Issues() {
             );
 
             setRecurringError(
-                err.response?.data?.message ||
-                "Unable to check for recurring issues."
+                t(
+                    err.response?.data?.message ||
+                        "Unable to check for recurring issues."
+                )
             );
         } finally {
             setRecurringLoading(false);
+        }
+    };
+
+    const loadIssueHistory = async (issueId) => {
+        setIssueHistoryLoading(true);
+        setIssueHistoryError("");
+
+        try {
+            const response = await api.get(
+                `/issues/${issueId}/history`,
+                {
+                    headers: getAuthHeaders()
+                }
+            );
+
+            setIssueHistory(
+                Array.isArray(response.data) ? response.data : []
+            );
+        } catch (err) {
+            console.error("Issue history loading error:", err);
+            setIssueHistoryError(
+                err.response?.data?.message ||
+                    t("Unable to load this issue's progress history.")
+            );
+            setIssueHistory([]);
+        } finally {
+            setIssueHistoryLoading(false);
         }
     };
 
@@ -644,6 +683,8 @@ function Issues() {
 
     const closeIssueModal = () => {
         setSelectedIssue(null);
+        setIssueHistory([]);
+        setIssueHistoryError("");
         setRecurringIssues([]);
         setRecurringError("");
         setRecurringLoading(false);
@@ -674,8 +715,10 @@ function Issues() {
             );
 
             setAssignError(
-                err.response?.data?.message ||
-                "Unable to load department officers."
+                t(
+                    err.response?.data?.message ||
+                        "Unable to load department officers."
+                )
             );
         } finally {
             setOfficersLoading(false);
@@ -722,12 +765,10 @@ function Issues() {
 
     const formatDate = (date) => {
         if (!date) return "-";
-
         const parsedDate = new Date(date);
-
         return Number.isNaN(parsedDate.getTime())
             ? "-"
-            : parsedDate.toLocaleString();
+            : parsedDate.toLocaleString(locale === "hi" ? "hi-IN" : "en-IN");
     };
 
     // =========================================================
@@ -761,7 +802,7 @@ function Issues() {
             officerId <= 0
         ) {
             setAssignError(
-                "Please select a valid department officer."
+                t("Please select a valid department officer.")
             );
             return;
         }
@@ -804,11 +845,17 @@ function Issues() {
                     : currentIssue
             );
 
+            if (selectedIssue?.id === updatedIssue.id) {
+                await loadIssueHistory(updatedIssue.id);
+            }
+
             setAssigningIssue(null);
             setAssignedTo("");
 
             setSuccess(
-                `Issue #${updatedIssue.id} was assigned successfully.`
+                locale === "hi"
+                    ? `समस्या #${updatedIssue.id} सफलतापूर्वक आवंटित की गई।`
+                    : `Issue #${updatedIssue.id} was assigned successfully.`
             );
 
             await loadIssues();
@@ -819,8 +866,10 @@ function Issues() {
             );
 
             setAssignError(
-                err.response?.data?.message ||
-                "Unable to assign this issue. Please try again."
+                t(
+                    err.response?.data?.message ||
+                        "Unable to assign this issue. Please try again."
+                )
             );
         } finally {
             setAssigning(false);
@@ -887,6 +936,7 @@ function Issues() {
             const updatedIssue = response.data;
 
             setSelectedIssue(updatedIssue);
+            await loadIssueHistory(updatedIssue.id);
 
             setIssues((currentIssues) =>
                 currentIssues.map((issue) =>
@@ -897,7 +947,9 @@ function Issues() {
             );
 
             setSuccess(
-                `Issue #${updatedIssue.id} status changed to ${nextStatus.replaceAll("_", " ")}.`
+                locale === "hi"
+                    ? `समस्या #${updatedIssue.id} की स्थिति ${translateStatus(locale, nextStatus)} कर दी गई।`
+                    : `Issue #${updatedIssue.id} status changed to ${nextStatus.replaceAll("_", " ")}.`
             );
 
             await loadIssues();
@@ -912,8 +964,10 @@ function Issues() {
             );
 
             setStatusError(
-                err.response?.data?.message ||
-                "Unable to update this issue's status. Please try again."
+                t(
+                    err.response?.data?.message ||
+                        "Unable to update this issue's status. Please try again."
+                )
             );
         } finally {
             setStatusUpdating(false);
@@ -926,50 +980,50 @@ function Issues() {
 
     const getRoleTitle = () => {
         if (currentRole === "DEPARTMENT") {
-            return "My Assigned Issues";
+            return t("My Assigned Issues");
         }
 
         if (currentRole === "CITIZEN") {
-            return "My Reported Issues";
+            return t("My Reported Issues");
         }
 
-        return "Issue Management";
+        return t("Issue Management");
     };
 
     const getRoleDescription = () => {
         if (currentRole === "DEPARTMENT") {
-            return "View and update public infrastructure issues assigned to you.";
+            return t("View and update public infrastructure issues assigned to you.");
         }
 
         if (currentRole === "CITIZEN") {
-            return "View, search and track the infrastructure issues you have reported.";
+            return t("View, search and track the infrastructure issues you have reported.");
         }
 
-        return "View, search, filter and assign public infrastructure issues.";
+        return t("View, search, filter and assign public infrastructure issues.");
     };
 
     const getIssuesCardTitle = () => {
         if (currentRole === "DEPARTMENT") {
-            return "Assigned to Me";
+            return t("Assigned to Me");
         }
 
         if (currentRole === "CITIZEN") {
-            return "My Reports";
+            return t("My Reports");
         }
 
-        return "Issues";
+        return t("Issues");
     };
 
     const getEmptyMessage = () => {
         if (currentRole === "DEPARTMENT") {
-            return "No issues are currently assigned to you.";
+            return t("No issues are currently assigned to you.");
         }
 
         if (currentRole === "CITIZEN") {
-            return "You have not reported any issues yet.";
+            return t("You have not reported any issues yet.");
         }
 
-        return "No issues found.";
+        return t("No issues found.");
     };
 
     return (
@@ -979,27 +1033,6 @@ function Issues() {
                 HEADER
             ================================================== */}
 
-            <header className="dashboard-header">
-                <div>
-                    <h1>CivicOS</h1>
-                    <p>
-                        Public Infrastructure Management
-                    </p>
-                </div>
-
-                <div className="header-right">
-                    <span className="role-badge">
-                        {currentRole || "USER"}
-                    </span>
-
-                    <button
-                        className="logout-button"
-                        onClick={handleLogout}
-                    >
-                        Logout
-                    </button>
-                </div>
-            </header>
 
             <main className="issues-content">
 
@@ -1026,7 +1059,7 @@ function Issues() {
                                 className="primary-button"
                                 onClick={openCreateModal}
                             >
-                                + Report New Issue
+                                {t("+ Report New Issue")}
                             </button>
                         )}
 
@@ -1036,7 +1069,7 @@ function Issues() {
                                 window.location.href = "/";
                             }}
                         >
-                            ← Dashboard
+                            {t("← Dashboard")}
                         </button>
                     </div>
                 </div>
@@ -1057,7 +1090,7 @@ function Issues() {
                             onClick={() =>
                                 setSuccess("")
                             }
-                            aria-label="Dismiss success message"
+                            aria-label={t("Dismiss success message")}
                         >
                             ×
                         </button>
@@ -1077,10 +1110,9 @@ function Issues() {
                             </h3>
 
                             <p>
-                                {totalElements} issue
-                                {totalElements === 1
-                                    ? ""
-                                    : "s"} found
+                                {locale === "hi"
+                                    ? `${totalElements} समस्याएँ मिलीं`
+                                    : `${totalElements} issue${totalElements === 1 ? "" : "s"} found`}
                             </p>
                         </div>
                     </div>
@@ -1095,7 +1127,7 @@ function Issues() {
                     >
                         <div className="filter-field">
                             <label htmlFor="keyword">
-                                Search
+                                {t("Search")}
                             </label>
 
                             <input
@@ -1107,13 +1139,13 @@ function Issues() {
                                         event.target.value
                                     )
                                 }
-                                placeholder="Search title or description"
+                                placeholder={t("Search title or description")}
                             />
                         </div>
 
                         <div className="filter-field">
                             <label htmlFor="status">
-                                Status
+                                {t("Status")}
                             </label>
 
                             <select
@@ -1126,34 +1158,34 @@ function Issues() {
                                 }
                             >
                                 <option value="">
-                                    All Statuses
+                                    {t("All Statuses")}
                                 </option>
 
                                 <option value="REPORTED">
-                                    Reported
+                                    {t("Reported")}
                                 </option>
 
                                 <option value="VERIFIED">
-                                    Verified
+                                    {t("Verified")}
                                 </option>
 
                                 <option value="ASSIGNED">
-                                    Assigned
+                                    {t("Assigned")}
                                 </option>
 
                                 <option value="IN_PROGRESS">
-                                    In Progress
+                                    {t("In Progress")}
                                 </option>
 
                                 <option value="RESOLVED">
-                                    Resolved
+                                    {t("Resolved")}
                                 </option>
                             </select>
                         </div>
 
                         <div className="filter-field">
                             <label htmlFor="priority">
-                                Priority
+                                {t("Priority")}
                             </label>
 
                             <select
@@ -1166,30 +1198,30 @@ function Issues() {
                                 }
                             >
                                 <option value="">
-                                    All Priorities
+                                    {t("All Priorities")}
                                 </option>
 
                                 <option value="LOW">
-                                    Low
+                                    {t("Low")}
                                 </option>
 
                                 <option value="MEDIUM">
-                                    Medium
+                                    {t("Medium")}
                                 </option>
 
                                 <option value="HIGH">
-                                    High
+                                    {t("High")}
                                 </option>
 
                                 <option value="CRITICAL">
-                                    Critical
+                                    {t("Critical")}
                                 </option>
                             </select>
                         </div>
 
                         <div className="filter-field">
                             <label htmlFor="category">
-                                Category
+                                {t("Category")}
                             </label>
 
                             <select
@@ -1202,31 +1234,31 @@ function Issues() {
                                 }
                             >
                                 <option value="">
-                                    All Categories
+                                    {t("All Categories")}
                                 </option>
 
                                 <option value="ROADS">
-                                    Roads
+                                    {t("Roads")}
                                 </option>
 
                                 <option value="STREETLIGHTS">
-                                    Streetlights
+                                    {t("Streetlights")}
                                 </option>
 
                                 <option value="WATER">
-                                    Water
+                                    {t("Water")}
                                 </option>
 
                                 <option value="DRAINAGE">
-                                    Drainage
+                                    {t("Drainage")}
                                 </option>
 
                                 <option value="WASTE">
-                                    Waste
+                                    {t("Waste")}
                                 </option>
 
                                 <option value="ELECTRICITY">
-                                    Electricity
+                                    {t("Electricity")}
                                 </option>
                             </select>
                         </div>
@@ -1236,7 +1268,7 @@ function Issues() {
                                 type="submit"
                                 className="primary-button"
                             >
-                                Search
+                                {t("Search")}
                             </button>
 
                             <button
@@ -1244,7 +1276,7 @@ function Issues() {
                                 className="secondary-button"
                                 onClick={handleClearFilters}
                             >
-                                Clear
+                                {t("Clear")}
                             </button>
                         </div>
                     </form>
@@ -1268,7 +1300,7 @@ function Issues() {
 
                     {loading ? (
                         <div className="issues-loading">
-                            Loading issues...
+                            {t("Loading issues...")}
                         </div>
                     ) : issues.length === 0 ? (
                         <div className="issues-empty">
@@ -1280,20 +1312,20 @@ function Issues() {
                                 <thead>
                                     <tr>
                                         <th>ID</th>
-                                        <th>Title</th>
-                                        <th>Category</th>
-                                        <th>Priority</th>
-                                        <th>Status</th>
+                                        <th>{t("Title")}</th>
+                                        <th>{t("Category")}</th>
+                                        <th>{t("Priority")}</th>
+                                        <th>{t("Status")}</th>
 
                                         {currentRole !==
                                             "CITIZEN" && (
                                             <th>
-                                                Assigned Officer
+                                                {t("Assigned Officer")}
                                             </th>
                                         )}
 
-                                        <th>Created</th>
-                                        <th>Actions</th>
+                                        <th>{t("Created")}</th>
+                                        <th>{t("Actions")}</th>
                                     </tr>
                                 </thead>
 
@@ -1319,15 +1351,11 @@ function Issues() {
                                                 </td>
 
                                                 <td>
-                                                    {
-                                                        issue.category
-                                                    }
+                                                    {translateStatus(locale, issue.category)}
                                                 </td>
 
                                                 <td>
-                                                    {
-                                                        issue.priority
-                                                    }
+                                                    {translateStatus(locale, issue.priority)}
                                                 </td>
 
                                                 <td>
@@ -1337,13 +1365,7 @@ function Issues() {
                                                                 ""
                                                         ).toLowerCase()}`}
                                                     >
-                                                        {String(
-                                                            issue.status ||
-                                                                "-"
-                                                        ).replaceAll(
-                                                            "_",
-                                                            " "
-                                                        )}
+                                                        {translateStatus(locale, issue.status)}
                                                     </span>
                                                 </td>
 
@@ -1351,7 +1373,7 @@ function Issues() {
                                                     "CITIZEN" && (
                                                     <td>
                                                         {issue.assignedToName ||
-                                                            "Unassigned"}
+                                                            t("Unassigned")}
                                                     </td>
                                                 )}
 
@@ -1380,6 +1402,14 @@ function Issues() {
                                                                     ""
                                                                 );
 
+                                                                setIssueHistory(
+                                                                    []
+                                                                );
+
+                                                                loadIssueHistory(
+                                                                    issue.id
+                                                                );
+
                                                                 setSelectedIssue(
                                                                     issue
                                                                 );
@@ -1394,7 +1424,7 @@ function Issues() {
                                                                 }
                                                             }}
                                                         >
-                                                            View
+                                                            {t("View")}
                                                         </button>
 
                                                         {currentRole ===
@@ -1414,11 +1444,11 @@ function Issues() {
                                                                 title={
                                                                     issue.status !==
                                                                     "VERIFIED"
-                                                                        ? "Only verified issues can be assigned"
-                                                                        : "Assign to a department officer"
+                                                                        ? t("Only verified issues can be assigned")
+                                                                        : t("Assign to a department officer")
                                                                 }
                                                             >
-                                                                Assign
+                                                                {t("Assign")}
                                                             </button>
                                                         )}
 
@@ -1450,12 +1480,13 @@ function Issues() {
                                         )
                                     }
                                 >
-                                    Previous
+                                    {t("Previous")}
                                 </button>
 
                                 <span>
-                                    Page {page + 1} of{" "}
-                                    {totalPages}
+                                    {locale === "hi"
+                                        ? `पृष्ठ ${page + 1} / ${totalPages}`
+                                        : `Page ${page + 1} of ${totalPages}`}
                                 </span>
 
                                 <button
@@ -1471,7 +1502,7 @@ function Issues() {
                                         )
                                     }
                                 >
-                                    Next
+                                    {t("Next")}
                                 </button>
 
                             </div>
@@ -1499,13 +1530,11 @@ function Issues() {
                             <div className="issue-modal-header">
                                 <div>
                                     <h2>
-                                        Report New Issue
+                                        {t("Report New Issue")}
                                     </h2>
 
                                     <p>
-                                        Report a public
-                                        infrastructure
-                                        problem.
+                                        {t("Report a public infrastructure problem.")}
                                     </p>
                                 </div>
 
@@ -1514,7 +1543,7 @@ function Issues() {
                                     className="modal-close-button"
                                     onClick={closeCreateModal}
                                     disabled={creatingIssue}
-                                    aria-label="Close report issue dialog"
+                                    aria-label={t("Close report issue dialog")}
                                 >
                                     ×
                                 </button>
@@ -1541,7 +1570,7 @@ function Issues() {
 
                                     <div className="filter-field">
                                         <label htmlFor="issue-title">
-                                            Title
+                                            {t("Title")}
                                         </label>
 
                                         <input
@@ -1554,7 +1583,7 @@ function Issues() {
                                             onChange={
                                                 handleIssueFormChange
                                             }
-                                            placeholder="Example: Large pothole near main road"
+                                            placeholder={t("Example: Large pothole near main road")}
                                             maxLength={200}
                                             required
                                             disabled={
@@ -1565,7 +1594,7 @@ function Issues() {
 
                                     <div className="filter-field">
                                         <label htmlFor="issue-description">
-                                            Description
+                                            {t("Description")}
                                         </label>
 
                                         <textarea
@@ -1577,7 +1606,7 @@ function Issues() {
                                             onChange={
                                                 handleIssueFormChange
                                             }
-                                            placeholder="Describe the infrastructure problem..."
+                                            placeholder={t("Describe the infrastructure problem...")}
                                             rows={5}
                                             required
                                             disabled={
@@ -1596,7 +1625,7 @@ function Issues() {
                                     >
                                         <div className="filter-field">
                                             <label htmlFor="issue-category">
-                                                Category
+                                                {t("Category")}
                                             </label>
 
                                             <select
@@ -1614,38 +1643,38 @@ function Issues() {
                                                 }
                                             >
                                                 <option value="">
-                                                    Select category
+                                                    {t("Select category")}
                                                 </option>
 
                                                 <option value="ROADS">
-                                                    Roads
+                                                    {t("Roads")}
                                                 </option>
 
                                                 <option value="STREETLIGHTS">
-                                                    Streetlights
+                                                    {t("Streetlights")}
                                                 </option>
 
                                                 <option value="WATER">
-                                                    Water
+                                                    {t("Water")}
                                                 </option>
 
                                                 <option value="DRAINAGE">
-                                                    Drainage
+                                                    {t("Drainage")}
                                                 </option>
 
                                                 <option value="WASTE">
-                                                    Waste
+                                                    {t("Waste")}
                                                 </option>
 
                                                 <option value="ELECTRICITY">
-                                                    Electricity
+                                                    {t("Electricity")}
                                                 </option>
                                             </select>
                                         </div>
 
                                         <div className="filter-field">
                                             <label htmlFor="issue-priority">
-                                                Priority
+                                                {t("Priority")}
                                             </label>
 
                                             <select
@@ -1663,23 +1692,23 @@ function Issues() {
                                                 }
                                             >
                                                 <option value="">
-                                                    Select priority
+                                                    {t("Select priority")}
                                                 </option>
 
                                                 <option value="LOW">
-                                                    Low
+                                                    {t("Low")}
                                                 </option>
 
                                                 <option value="MEDIUM">
-                                                    Medium
+                                                    {t("Medium")}
                                                 </option>
 
                                                 <option value="HIGH">
-                                                    High
+                                                    {t("High")}
                                                 </option>
 
                                                 <option value="CRITICAL">
-                                                    Critical
+                                                    {t("Critical")}
                                                 </option>
                                             </select>
                                         </div>
@@ -1695,7 +1724,7 @@ function Issues() {
                                     >
                                         <div className="filter-field">
                                             <label htmlFor="issue-latitude">
-                                                Latitude
+                                                {t("Latitude")}
                                             </label>
 
                                             <input
@@ -1709,7 +1738,11 @@ function Issues() {
                                                 onChange={
                                                     handleIssueFormChange
                                                 }
-                                                placeholder="Example: 30.3398"
+                                                placeholder={
+                                                    locale === "hi"
+                                                        ? "उदाहरण: 30.3398"
+                                                        : "Example: 30.3398"
+                                                }
                                                 required
                                                 disabled={
                                                     creatingIssue
@@ -1719,7 +1752,7 @@ function Issues() {
 
                                         <div className="filter-field">
                                             <label htmlFor="issue-longitude">
-                                                Longitude
+                                                {t("Longitude")}
                                             </label>
 
                                             <input
@@ -1733,7 +1766,11 @@ function Issues() {
                                                 onChange={
                                                     handleIssueFormChange
                                                 }
-                                                placeholder="Example: 76.3869"
+                                                placeholder={
+                                                    locale === "hi"
+                                                        ? "उदाहरण: 76.3869"
+                                                        : "Example: 76.3869"
+                                                }
                                                 required
                                                 disabled={
                                                     creatingIssue
@@ -1744,7 +1781,7 @@ function Issues() {
 
                                     <div className="filter-field">
                                         <label htmlFor="issue-image">
-                                            Evidence Photo
+                                            {t("Evidence Photo")}
                                         </label>
 
                                         <input
@@ -1769,9 +1806,7 @@ function Issues() {
                                                     0.7
                                             }}
                                         >
-                                            Optional. JPEG,
-                                            PNG or WEBP.
-                                            Maximum 5 MB.
+                                            {t("Optional. JPEG, PNG or WEBP. Maximum 5 MB.")}
                                         </small>
                                     </div>
 
@@ -1790,14 +1825,14 @@ function Issues() {
                                                         "600"
                                                 }}
                                             >
-                                                Photo Preview
+                                                {t("Photo Preview")}
                                             </p>
 
                                             <img
                                                 src={
                                                     imagePreview
                                                 }
-                                                alt="Evidence preview"
+                                                alt={t("Evidence preview")}
                                                 style={{
                                                     display:
                                                         "block",
@@ -1834,7 +1869,7 @@ function Issues() {
                                             creatingIssue
                                         }
                                     >
-                                        Cancel
+                                        {t("Cancel")}
                                     </button>
 
                                     <button
@@ -1845,8 +1880,8 @@ function Issues() {
                                         }
                                     >
                                         {creatingIssue
-                                            ? "Reporting..."
-                                            : "Report Issue"}
+                                            ? t("Reporting...")
+                                            : t("Report Issue")}
                                     </button>
 
                                 </div>
@@ -1876,15 +1911,13 @@ function Issues() {
                         <div className="issue-modal-header">
                             <div>
                                 <h2>
-                                    Issue #
+                                    {t("Issue #")} #
                                     {
                                         selectedIssue.id
                                     }
                                 </h2>
 
-                                <p>
-                                    Issue Details
-                                </p>
+                                <p>{t("Issue Details")}</p>
                             </div>
 
                             <button
@@ -1893,7 +1926,7 @@ function Issues() {
                                 onClick={
                                     closeIssueModal
                                 }
-                                aria-label="Close issue details"
+                                aria-label={t("Close issue details")}
                             >
                                 ×
                             </button>
@@ -1907,14 +1940,14 @@ function Issues() {
 
                             <div className="issue-detail-section">
                                 <h3>
-                                    Issue Information
+                                    {t("Issue Information")}
                                 </h3>
 
                                 <div className="issue-detail-grid">
 
                                     <div>
                                         <span>
-                                            Title
+                                            {t("Title")}
                                         </span>
 
                                         <strong>
@@ -1927,49 +1960,50 @@ function Issues() {
 
                                     <div>
                                         <span>
-                                            Category
+                                            {t("Category")}
                                         </span>
 
                                         <strong>
-                                            {
-                                                selectedIssue.category ||
-                                                "-"
-                                            }
+                                            {selectedIssue.category
+                                                ? translateStatus(
+                                                      locale,
+                                                      selectedIssue.category
+                                                  )
+                                                : "-"}
                                         </strong>
                                     </div>
 
                                     <div>
                                         <span>
-                                            Priority
+                                            {t("Priority")}
                                         </span>
 
                                         <strong>
-                                            {
-                                                selectedIssue.priority ||
-                                                "-"
-                                            }
+                                            {selectedIssue.priority
+                                                ? translateStatus(
+                                                      locale,
+                                                      selectedIssue.priority
+                                                  )
+                                                : "-"}
                                         </strong>
                                     </div>
 
                                     <div>
                                         <span>
-                                            Status
+                                            {t("Status")}
                                         </span>
 
                                         <strong>
-                                            {String(
-                                                selectedIssue.status ||
-                                                    "-"
-                                            ).replaceAll(
-                                                "_",
-                                                " "
+                                            {translateStatus(
+                                                locale,
+                                                selectedIssue.status
                                             )}
                                         </strong>
                                     </div>
 
                                     <div>
                                         <span>
-                                            Created
+                                            {t("Created")}
                                         </span>
 
                                         <strong>
@@ -1981,12 +2015,12 @@ function Issues() {
 
                                     <div>
                                         <span>
-                                            Assigned Officer
+                                            {t("Assigned Officer")}
                                         </span>
 
                                         <strong>
                                             {selectedIssue.assignedToName ||
-                                                "Unassigned"}
+                                                t("Unassigned")}
                                         </strong>
                                     </div>
 
@@ -1994,7 +2028,7 @@ function Issues() {
                                         "CITIZEN" && (
                                         <div>
                                             <span>
-                                                Officer ID
+                                                {t("Officer ID")}
                                             </span>
 
                                             <strong>
@@ -2007,13 +2041,116 @@ function Issues() {
                                 </div>
                             </div>
 
+                            <section
+                                className="issue-detail-section issue-timeline-section"
+                                aria-labelledby="issue-timeline-title"
+                            >
+                                <div className="issue-timeline-heading">
+                                    <div>
+                                        <h3 id="issue-timeline-title">
+                                            {t("Progress timeline")}
+                                        </h3>
+                                        <p>
+                                            {t("Follow each recorded update from report to resolution.")}
+                                        </p>
+                                    </div>
+                                    <span className="issue-current-status">
+                                        {translateStatus(
+                                            locale,
+                                            selectedIssue.status
+                                        )}
+                                    </span>
+                                </div>
+
+                                {selectedIssue.assignedToName && (
+                                    <p className="issue-timeline-assignee">
+                                        {t("Currently assigned to")}{" "}
+                                        <strong>
+                                            {selectedIssue.assignedToName}
+                                        </strong>
+                                    </p>
+                                )}
+
+                                {issueHistoryLoading ? (
+                                    <p
+                                        className="issue-timeline-message"
+                                        role="status"
+                                    >
+                                        {t("Loading progress history...")}
+                                    </p>
+                                ) : issueHistoryError ? (
+                                    <div
+                                        className="issue-timeline-error"
+                                        role="alert"
+                                    >
+                                        <span>{issueHistoryError}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                loadIssueHistory(selectedIssue.id)
+                                            }
+                                        >
+                                            {t("Retry")}
+                                        </button>
+                                    </div>
+                                ) : issueHistory.length === 0 ? (
+                                    <p className="issue-timeline-message">
+                                        {t("No status updates have been recorded yet.")}
+                                    </p>
+                                ) : (
+                                    <ol className="issue-timeline">
+                                        {issueHistory.map((entry, index) => (
+                                            <li
+                                                className={`issue-timeline-item ${
+                                                    index ===
+                                                    issueHistory.length - 1
+                                                        ? "current"
+                                                        : ""
+                                                }`}
+                                                key={`${entry.status}-${entry.changedAt}-${index}`}
+                                            >
+                                                <span
+                                                    className="issue-timeline-marker"
+                                                    aria-hidden="true"
+                                                />
+                                                <div className="issue-timeline-event">
+                                                    <strong>
+                                                        {translateStatus(
+                                                            locale,
+                                                            entry.status
+                                                        )}
+                                                    </strong>
+                                                    <time
+                                                        dateTime={
+                                                            entry.changedAt ||
+                                                            undefined
+                                                        }
+                                                    >
+                                                        {formatDate(
+                                                            entry.changedAt
+                                                        )}
+                                                    </time>
+                                                    <span>
+                                                        {t("Updated by")}{" "}
+                                                        {entry.changedByName ||
+                                                            (entry.changedBy
+                                                                ? `User #${entry.changedBy}`
+                                                                : t("CivicOS"))}
+                                                    </span>
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ol>
+                                )}
+                            </section>
+
                             {/* =================================================
                                 EVIDENCE PHOTO
                             ================================================== */}
 
                             <div className="issue-detail-section">
                                 <h3>
-                                    Evidence Photo
+                                    {t("Evidence Photo")}
                                 </h3>
 
                                 {selectedIssue.imageUrl ? (
@@ -2027,7 +2164,11 @@ function Issues() {
                                             src={getImageUrl(
                                                 selectedIssue.imageUrl
                                             )}
-                                            alt={`Evidence for issue #${selectedIssue.id}`}
+                                            alt={
+                                                locale === "hi"
+                                                    ? `समस्या #${selectedIssue.id} का साक्ष्य`
+                                                    : `Evidence for issue #${selectedIssue.id}`
+                                            }
                                             style={{
                                                 display:
                                                     "block",
@@ -2063,16 +2204,13 @@ function Issues() {
                                                 target="_blank"
                                                 rel="noreferrer"
                                             >
-                                                Open full-size
-                                                evidence image
+                                                {t("Open full-size evidence image")}
                                             </a>
                                         </div>
                                     </div>
                                 ) : (
                                     <p>
-                                        No evidence photo
-                                        was uploaded for
-                                        this issue.
+                                        {t("No evidence photo was uploaded for this issue.")}
                                     </p>
                                 )}
                             </div>
@@ -2086,20 +2224,16 @@ function Issues() {
                                 <div className="issue-detail-section">
 
                                     <h3>
-                                        Civic Memory & Prevention
+                                        {t("Civic Memory & Prevention")}
                                     </h3>
 
                                     <p>
-                                        Checking for previous
-                                        reports in the same
-                                        category within
-                                        500 meters.
+                                        {t("Checking for previous reports in the same category within 500 meters.")}
                                     </p>
 
                                     {recurringLoading && (
                                         <div className="issues-loading">
-                                            Checking for
-                                            recurring issues...
+                                            {t("Checking for recurring issues...")}
                                         </div>
                                     )}
 
@@ -2117,9 +2251,7 @@ function Issues() {
                                         recurringIssues.length ===
                                             0 && (
                                             <div className="issues-success">
-                                                ✓ No recurring
-                                                issue detected
-                                                near this report.
+                                                ✓ {t("No recurring issue detected near this report.")}
                                             </div>
                                         )}
 
@@ -2133,20 +2265,9 @@ function Issues() {
                                                     className="issues-error"
                                                     role="alert"
                                                 >
-                                                    ⚠ Recurring
-                                                    issue
-                                                    detected:
-                                                    {" "}
-                                                    {
-                                                        recurringIssues.length
-                                                    }{" "}
-                                                    related
-                                                    report
-                                                    {recurringIssues.length ===
-                                                    1
-                                                        ? ""
-                                                        : "s"}{" "}
-                                                    found nearby.
+                                                    {locale === "hi"
+                                                        ? `⚠ पास में ${recurringIssues.length} संबंधित समस्या रिपोर्ट मिलीं।`
+                                                        : `⚠ Recurring issue detected: ${recurringIssues.length} related report${recurringIssues.length === 1 ? "" : "s"} found nearby.`}
                                                 </div>
 
                                                 <div
@@ -2201,12 +2322,9 @@ function Issues() {
                                                                                 ""
                                                                         ).toLowerCase()}`}
                                                                     >
-                                                                        {String(
-                                                                            recurringIssue.status ||
-                                                                                "-"
-                                                                        ).replaceAll(
-                                                                            "_",
-                                                                            " "
+                                                                        {translateStatus(
+                                                                            locale,
+                                                                            recurringIssue.status
                                                                         )}
                                                                     </span>
 
@@ -2219,16 +2337,19 @@ function Issues() {
                                                                     }}
                                                                 >
                                                                     <strong>
-                                                                        Category:
+                                                                        {t("Category")}:
                                                                     </strong>{" "}
                                                                     {
-                                                                        recurringIssue.category
+                                                                        translateStatus(
+                                                                            locale,
+                                                                            recurringIssue.category
+                                                                        )
                                                                     }
 
                                                                     {" • "}
 
                                                                     <strong>
-                                                                        Distance:
+                                                                        {t("Distance")}:
                                                                     </strong>{" "}
                                                                     {formatDistance(
                                                                         recurringIssue.distanceMeters
@@ -2237,7 +2358,7 @@ function Issues() {
                                                                     {" • "}
 
                                                                     <strong>
-                                                                        Reported:
+                                                                        {t("Reported")}:
                                                                     </strong>{" "}
                                                                     {formatDate(
                                                                         recurringIssue.createdAt
@@ -2265,18 +2386,15 @@ function Issues() {
                                 <div className="issue-detail-section status-update-section">
 
                                     <h3>
-                                        Update Status
+                                        {t("Update Status")}
                                     </h3>
 
                                     <p>
-                                        You can move this
-                                        issue to{" "}
+                                        {t("You can move this issue to")}{" "}
                                         <strong>
-                                            {getNextStatus(
-                                                selectedIssue
-                                            ).replaceAll(
-                                                "_",
-                                                " "
+                                            {translateStatus(
+                                                locale,
+                                                getNextStatus(selectedIssue)
                                             )}
                                         </strong>
                                         .
@@ -2302,13 +2420,10 @@ function Issues() {
                                         }
                                     >
                                         {statusUpdating
-                                            ? "Updating..."
-                                            : `Mark as ${getNextStatus(
-                                                  selectedIssue
-                                              ).replaceAll(
-                                                  "_",
-                                                  " "
-                                              )}`}
+                                            ? t("Updating...")
+                                            : locale === "hi"
+                                              ? `${translateStatus(locale, getNextStatus(selectedIssue))} के रूप में चिह्नित करें`
+                                              : `Mark as ${translateStatus(locale, getNextStatus(selectedIssue))}`}
                                     </button>
 
                                 </div>
@@ -2321,12 +2436,12 @@ function Issues() {
                             <div className="issue-detail-section">
 
                                 <h3>
-                                    Description
+                                    {t("Description")}
                                 </h3>
 
                                 <p className="issue-description">
                                     {selectedIssue.description ||
-                                        "No description provided."}
+                                        t("No description provided.")}
                                 </p>
 
                             </div>
@@ -2338,14 +2453,14 @@ function Issues() {
                             <div className="issue-detail-section">
 
                                 <h3>
-                                    Location
+                                    {t("Location")}
                                 </h3>
 
                                 <div className="issue-location">
 
                                     <div>
                                         <span>
-                                            Latitude
+                                            {t("Latitude")}
                                         </span>
 
                                         <strong>
@@ -2356,7 +2471,7 @@ function Issues() {
 
                                     <div>
                                         <span>
-                                            Longitude
+                                            {t("Longitude")}
                                         </span>
 
                                         <strong>
@@ -2380,7 +2495,7 @@ function Issues() {
                                     closeIssueModal
                                 }
                             >
-                                Close
+                                {t("Close")}
                             </button>
 
                         </div>
@@ -2413,17 +2528,14 @@ function Issues() {
 
                                 <div>
                                     <h2>
-                                        Assign Issue #
+                                        {t("Assign Issue")} #
                                         {
                                             assigningIssue.id
                                         }
                                     </h2>
 
                                     <p>
-                                        Assign this
-                                        verified issue
-                                        to a department
-                                        officer.
+                                        {t("Assign this verified issue to a department officer.")}
                                     </p>
                                 </div>
 
@@ -2436,7 +2548,7 @@ function Issues() {
                                     disabled={
                                         assigning
                                     }
-                                    aria-label="Close assignment dialog"
+                                    aria-label={t("Close assignment dialog")}
                                 >
                                     ×
                                 </button>
@@ -2454,16 +2566,13 @@ function Issues() {
                                     <div className="assignment-info">
 
                                         <span>
-                                            Current status
+                                            {t("Current status")}
                                         </span>
 
                                         <strong>
-                                            {String(
-                                                assigningIssue.status ||
-                                                    "-"
-                                            ).replaceAll(
-                                                "_",
-                                                " "
+                                            {translateStatus(
+                                                locale,
+                                                assigningIssue.status
                                             )}
                                         </strong>
 
@@ -2472,8 +2581,7 @@ function Issues() {
                                     <div className="filter-field assignment-field">
 
                                         <label htmlFor="assigned-officer">
-                                            Select Department
-                                            Officer
+                                            {t("Select Department Officer")}
                                         </label>
 
                                         <select
@@ -2501,11 +2609,10 @@ function Issues() {
 
                                             <option value="">
                                                 {officersLoading
-                                                    ? "Loading officers..."
-                                                    : officers.length ===
-                                                        0
-                                                      ? "No department officers available"
-                                                      : "Choose an officer"}
+                                                    ? t("Loading officers...")
+                                                    : officers.length === 0
+                                                      ? t("No department officers available")
+                                                      : t("Choose an officer")}
                                             </option>
 
                                             {officers.map(
@@ -2560,7 +2667,7 @@ function Issues() {
                                             assigning
                                         }
                                     >
-                                        Cancel
+                                        {t("Cancel")}
                                     </button>
 
                                     <button
@@ -2573,8 +2680,8 @@ function Issues() {
                                         }
                                     >
                                         {assigning
-                                            ? "Assigning..."
-                                            : "Assign Issue"}
+                                            ? t("Assigning...")
+                                            : t("Assign Issue")}
                                     </button>
 
                                 </div>

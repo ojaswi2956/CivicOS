@@ -1,3 +1,4 @@
+
 package com.civicos.api.controller;
 
 import java.util.List;
@@ -22,7 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.civicos.api.dto.AssignIssueRequest;
+import com.civicos.api.dto.CivicHotspotResponse;
+import com.civicos.api.dto.CivicRiskResponse;
+import com.civicos.api.dto.CivicTrustScoreResponse;
 import com.civicos.api.dto.CreateIssueRequest;
+import com.civicos.api.dto.DashboardAttentionResponse;
 import com.civicos.api.dto.DashboardStatsResponse;
 import com.civicos.api.dto.DepartmentStatsResponse;
 import com.civicos.api.dto.IssueResponse;
@@ -32,6 +37,9 @@ import com.civicos.api.dto.UpdateIssueStatusRequest;
 import com.civicos.api.entity.IssueCategory;
 import com.civicos.api.entity.IssuePriority;
 import com.civicos.api.entity.IssueStatus;
+import com.civicos.api.service.CivicHotspotService;
+import com.civicos.api.service.CivicRiskService;
+import com.civicos.api.service.CivicTrustScoreService;
 import com.civicos.api.service.IssueService;
 
 import jakarta.validation.Valid;
@@ -52,35 +60,36 @@ public class IssueController {
     );
 
     private final IssueService issueService;
+    private final CivicRiskService civicRiskService;
+    private final CivicTrustScoreService civicTrustScoreService;
+    private final CivicHotspotService civicHotspotService;
 
-    public IssueController(IssueService issueService) {
+    public IssueController(
+            IssueService issueService,
+            CivicRiskService civicRiskService,
+            CivicTrustScoreService civicTrustScoreService,
+            CivicHotspotService civicHotspotService
+    ) {
         this.issueService = issueService;
+        this.civicRiskService = civicRiskService;
+        this.civicTrustScoreService = civicTrustScoreService;
+        this.civicHotspotService = civicHotspotService;
     }
 
     // ============================================================
     // CREATE ISSUE
     // ============================================================
 
-    @PostMapping(
-            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
-    )
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<IssueResponse> createIssue(
             @Valid
             @RequestPart("issue")
             CreateIssueRequest request,
 
-            @RequestPart(
-                    value = "image",
-                    required = false
-            )
+            @RequestPart(value = "image", required = false)
             MultipartFile image
     ) {
-
-        IssueResponse response =
-                issueService.createIssue(
-                        request,
-                        image
-                );
+        IssueResponse response = issueService.createIssue(request, image);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
@@ -93,10 +102,7 @@ public class IssueController {
 
     @GetMapping("/my")
     public ResponseEntity<List<IssueResponse>> getMyIssues() {
-
-        return ResponseEntity.ok(
-                issueService.getMyIssues()
-        );
+        return ResponseEntity.ok(issueService.getMyIssues());
     }
 
     // ============================================================
@@ -105,10 +111,7 @@ public class IssueController {
 
     @GetMapping("/assigned")
     public ResponseEntity<List<IssueResponse>> getAssignedIssues() {
-
-        return ResponseEntity.ok(
-                issueService.getAssignedIssues()
-        );
+        return ResponseEntity.ok(issueService.getAssignedIssues());
     }
 
     // ============================================================
@@ -117,29 +120,14 @@ public class IssueController {
 
     @GetMapping("/all")
     public ResponseEntity<Page<IssueResponse>> getAllIssues(
-
-            @RequestParam(required = false)
-            String keyword,
-
-            @RequestParam(required = false)
-            IssueStatus status,
-
-            @RequestParam(required = false)
-            IssuePriority priority,
-
-            @RequestParam(required = false)
-            IssueCategory category,
-
-            @RequestParam(defaultValue = "0")
-            int page,
-
-            @RequestParam(defaultValue = "10")
-            int size,
-
-            @RequestParam(defaultValue = "createdAt,desc")
-            String sort
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) IssueStatus status,
+            @RequestParam(required = false) IssuePriority priority,
+            @RequestParam(required = false) IssueCategory category,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt,desc") String sort
     ) {
-
         if (page < 0) {
             throw new IllegalArgumentException(
                     "Page number cannot be negative"
@@ -154,30 +142,22 @@ public class IssueController {
 
         if (size > MAX_PAGE_SIZE) {
             throw new IllegalArgumentException(
-                    "Page size cannot exceed "
-                            + MAX_PAGE_SIZE
+                    "Page size cannot exceed " + MAX_PAGE_SIZE
             );
         }
 
         String[] sortParts = sort.split(",");
 
-        String sortField =
-                sortParts[0].trim();
+        String sortField = sortParts[0].trim();
 
-        Sort.Direction direction =
-                Sort.Direction.DESC;
+        Sort.Direction direction = Sort.Direction.DESC;
 
         if (sortParts.length > 1) {
-
             try {
-
-                direction =
-                        Sort.Direction.fromString(
-                                sortParts[1].trim()
-                        );
-
+                direction = Sort.Direction.fromString(
+                        sortParts[1].trim()
+                );
             } catch (IllegalArgumentException exception) {
-
                 throw new IllegalArgumentException(
                         "Sort direction must be 'asc' or 'desc'"
                 );
@@ -185,28 +165,19 @@ public class IssueController {
         }
 
         if (!ALLOWED_SORT_FIELDS.contains(sortField)) {
-
             throw new IllegalArgumentException(
                     "Sorting by '"
                             + sortField
-                            + "' is not supported. "
-                            + "Allowed fields: "
-                            + String.join(
-                                    ", ",
-                                    ALLOWED_SORT_FIELDS
-                            )
+                            + "' is not supported. Allowed fields: "
+                            + String.join(", ", ALLOWED_SORT_FIELDS)
             );
         }
 
-        Pageable pageable =
-                PageRequest.of(
-                        page,
-                        size,
-                        Sort.by(
-                                direction,
-                                sortField
-                        )
-                );
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(direction, sortField)
+        );
 
         return ResponseEntity.ok(
                 issueService.filterIssues(
@@ -225,9 +196,15 @@ public class IssueController {
 
     @GetMapping("/dashboard/stats")
     public ResponseEntity<DashboardStatsResponse> getDashboardStats() {
-
         return ResponseEntity.ok(
                 issueService.getDashboardStats()
+        );
+    }
+
+    @GetMapping("/dashboard/attention")
+    public ResponseEntity<DashboardAttentionResponse> getDashboardAttention() {
+        return ResponseEntity.ok(
+                issueService.getDashboardAttention()
         );
     }
 
@@ -237,9 +214,52 @@ public class IssueController {
 
     @GetMapping("/department/stats")
     public ResponseEntity<DepartmentStatsResponse> getDepartmentStats() {
-
         return ResponseEntity.ok(
                 issueService.getDepartmentStats()
+        );
+    }
+
+    // ============================================================
+    // CIVIC RISK RADAR - ALL ACCESSIBLE ISSUE RISK SCORES
+    // ============================================================
+
+    @GetMapping("/risk")
+    public ResponseEntity<List<CivicRiskResponse>> getAllIssueRisks() {
+        return ResponseEntity.ok(
+                civicRiskService.assessAllIssues()
+        );
+    }
+
+    // ============================================================
+    // CIVIC TRUST SCORE - ALL DEPARTMENT SCORES (ADMIN)
+    // ============================================================
+
+    @GetMapping("/trust-score/all")
+    public ResponseEntity<List<CivicTrustScoreResponse>> getAllTrustScores() {
+        return ResponseEntity.ok(
+                civicTrustScoreService.getAllDepartmentScores()
+        );
+    }
+
+    // ============================================================
+    // CIVIC TRUST SCORE - CURRENT DEPARTMENT'S SCORE
+    // ============================================================
+
+    @GetMapping("/trust-score/my")
+    public ResponseEntity<CivicTrustScoreResponse> getMyTrustScore() {
+        return ResponseEntity.ok(
+                civicTrustScoreService.getMyDepartmentScore()
+        );
+    }
+
+    // ============================================================
+    // CIVIC HOTSPOT PREDICTION
+    // ============================================================
+
+    @GetMapping("/hotspots")
+    public ResponseEntity<List<CivicHotspotResponse>> getHotspots() {
+        return ResponseEntity.ok(
+                civicHotspotService.getHotspots()
         );
     }
 
@@ -251,9 +271,21 @@ public class IssueController {
     public ResponseEntity<IssueResponse> getIssueById(
             @PathVariable Long id
     ) {
-
         return ResponseEntity.ok(
                 issueService.getIssueById(id)
+        );
+    }
+
+    // ============================================================
+    // CIVIC RISK RADAR - RISK ASSESSMENT FOR ONE ISSUE
+    // ============================================================
+
+    @GetMapping("/{id}/risk")
+    public ResponseEntity<CivicRiskResponse> getIssueRisk(
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(
+                civicRiskService.assessIssue(id)
         );
     }
 
@@ -265,7 +297,6 @@ public class IssueController {
     public ResponseEntity<List<IssueStatusHistoryResponse>> getIssueHistory(
             @PathVariable Long id
     ) {
-
         return ResponseEntity.ok(
                 issueService.getIssueHistory(id)
         );
@@ -279,7 +310,6 @@ public class IssueController {
     public ResponseEntity<List<RecurringIssueResponse>> getRecurringIssues(
             @PathVariable Long id
     ) {
-
         return ResponseEntity.ok(
                 issueService.findRecurringIssues(id)
         );
@@ -292,17 +322,12 @@ public class IssueController {
     @PatchMapping("/{id}/status")
     public ResponseEntity<IssueResponse> updateIssueStatus(
             @PathVariable Long id,
-
-            @Valid
-            @RequestBody
-            UpdateIssueStatusRequest request
+            @Valid @RequestBody UpdateIssueStatusRequest request
     ) {
-
-        IssueResponse response =
-                issueService.updateIssueStatus(
-                        id,
-                        request
-                );
+        IssueResponse response = issueService.updateIssueStatus(
+                id,
+                request
+        );
 
         return ResponseEntity.ok(response);
     }
@@ -314,17 +339,12 @@ public class IssueController {
     @PatchMapping("/{id}/assign")
     public ResponseEntity<IssueResponse> assignIssue(
             @PathVariable Long id,
-
-            @Valid
-            @RequestBody
-            AssignIssueRequest request
+            @Valid @RequestBody AssignIssueRequest request
     ) {
-
-        IssueResponse response =
-                issueService.assignIssue(
-                        id,
-                        request
-                );
+        IssueResponse response = issueService.assignIssue(
+                id,
+                request
+        );
 
         return ResponseEntity.ok(response);
     }

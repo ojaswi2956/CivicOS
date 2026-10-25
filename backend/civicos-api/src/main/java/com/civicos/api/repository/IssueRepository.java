@@ -1,5 +1,6 @@
 package com.civicos.api.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -165,6 +166,60 @@ public interface IssueRepository extends JpaRepository<Issue, Long> {
     long countByAssignedToAndStatus(
             User user,
             IssueStatus status
+    );
+
+    long countByStatusAndAssignedToIsNull(IssueStatus status);
+
+    @Query("""
+            SELECT issue
+            FROM Issue issue
+            WHERE (
+                (
+                    issue.createdAt < :cutoff
+                    AND issue.status NOT IN :completedStatuses
+                    AND (
+                        :assignedUser IS NULL
+                        OR issue.assignedTo = :assignedUser
+                    )
+                )
+                OR (
+                    :includeUnassigned = true
+                    AND issue.status = :unassignedStatus
+                    AND issue.assignedTo IS NULL
+                )
+            )
+            ORDER BY
+                CASE
+                    WHEN issue.status = :unassignedStatus
+                        AND issue.assignedTo IS NULL
+                    THEN 0
+                    ELSE 1
+                END,
+                issue.createdAt ASC
+            """)
+    Page<Issue> findDashboardAttentionIssues(
+            @Param("cutoff") LocalDateTime cutoff,
+            @Param("completedStatuses") List<IssueStatus> completedStatuses,
+            @Param("assignedUser") User assignedUser,
+            @Param("includeUnassigned") boolean includeUnassigned,
+            @Param("unassignedStatus") IssueStatus unassignedStatus,
+            Pageable pageable
+    );
+
+    @Query("""
+            SELECT COUNT(issue)
+            FROM Issue issue
+            WHERE issue.createdAt < :cutoff
+              AND issue.status NOT IN :completedStatuses
+              AND (
+                  :assignedUser IS NULL
+                  OR issue.assignedTo = :assignedUser
+              )
+            """)
+    long countOverdueIssues(
+            @Param("cutoff") LocalDateTime cutoff,
+            @Param("completedStatuses") List<IssueStatus> completedStatuses,
+            @Param("assignedUser") User assignedUser
     );
     
     // =========================================================

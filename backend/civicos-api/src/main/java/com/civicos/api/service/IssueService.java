@@ -12,14 +12,18 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.civicos.api.dto.AssignIssueRequest;
 import com.civicos.api.dto.CreateIssueRequest;
+import com.civicos.api.dto.DashboardAttentionIssueResponse;
+import com.civicos.api.dto.DashboardAttentionResponse;
 import com.civicos.api.dto.DashboardStatsResponse;
 import com.civicos.api.dto.DepartmentStatsResponse;
 import com.civicos.api.dto.IssueResponse;
@@ -420,6 +424,74 @@ public class IssueService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public DashboardAttentionResponse getDashboardAttention() {
+        User currentUser = getCurrentUser();
+        boolean isAdmin = currentUser.getRole() == Role.ADMIN;
+        boolean isDepartment = currentUser.getRole() == Role.DEPARTMENT;
+
+        if (!isAdmin && !isDepartment) {
+            throw new ForbiddenException(
+                    "Only administrators and department users can view dashboard attention"
+            );
+        }
+
+        User assignedUser = isDepartment ? currentUser : null;
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(7);
+        List<IssueStatus> completedStatuses = List.of(
+                IssueStatus.RESOLVED,
+                IssueStatus.CLOSED
+        );
+        Page<Issue> attentionPage =
+                issueRepository.findDashboardAttentionIssues(
+                        cutoff,
+                        completedStatuses,
+                        assignedUser,
+                        isAdmin,
+                        IssueStatus.VERIFIED,
+                        PageRequest.of(0, 8)
+                );
+
+        List<DashboardAttentionIssueResponse> attentionIssues =
+                attentionPage.getContent().stream()
+                        .map(issue -> {
+                            boolean overdue =
+                                    issue.getCreatedAt().isBefore(cutoff)
+                                            && !completedStatuses.contains(
+                                                    issue.getStatus()
+                                            );
+                            boolean unassigned =
+                                    isAdmin
+                                            && issue.getStatus()
+                                                    == IssueStatus.VERIFIED
+                                            && issue.getAssignedTo() == null;
+
+                            return new DashboardAttentionIssueResponse(
+                                    mapToResponse(issue),
+                                    overdue,
+                                    unassigned
+                            );
+                        })
+                        .collect(Collectors.toList());
+
+        long overdueCount = issueRepository.countOverdueIssues(
+                cutoff,
+                completedStatuses,
+                assignedUser
+        );
+        long unassignedCount = isAdmin
+                ? issueRepository.countByStatusAndAssignedToIsNull(
+                        IssueStatus.VERIFIED
+                )
+                : 0;
+
+        return new DashboardAttentionResponse(
+                overdueCount,
+                unassignedCount,
+                attentionIssues
+        );
+    }
+
     // =========================================================
     // DEPARTMENT - ASSIGNED ISSUES
     // =========================================================
@@ -539,6 +611,7 @@ public class IssueService {
     // ISSUE STATUS HISTORY
     // =========================================================
 
+    @Transactional(readOnly = true)
     public List<IssueStatusHistoryResponse> getIssueHistory(
             Long issueId
     ) {
@@ -591,6 +664,9 @@ public class IssueService {
                                 item.getChangedAt().toString(),
                                 item.getChangedBy() != null
                                         ? item.getChangedBy().getId()
+                                        : null,
+                                item.getChangedBy() != null
+                                        ? item.getChangedBy().getName()
                                         : null
                         )
                 )

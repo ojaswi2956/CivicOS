@@ -5,6 +5,7 @@ public class IssueStatusHistoryResponse {
     private String status;
     private String changedAt;
     private Long changedBy;
+    private String changedByName;
 
     public IssueStatusHistoryResponse() {
     }
@@ -12,11 +13,13 @@ public class IssueStatusHistoryResponse {
     public IssueStatusHistoryResponse(
             String status,
             String changedAt,
-            Long changedBy
+            Long changedBy,
+            String changedByName
     ) {
         this.status = status;
         this.changedAt = changedAt;
         this.changedBy = changedBy;
+        this.changedByName = changedByName;
     }
 
     public String getStatus() {
@@ -29,5 +32,9 @@ public class IssueStatusHistoryResponse {
 
     public Long getChangedBy() {
         return changedBy;
+    }
+
+    public String getChangedByName() {
+        return changedByName;
     }
 }

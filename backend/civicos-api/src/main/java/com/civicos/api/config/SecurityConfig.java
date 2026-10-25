@@ -74,6 +74,11 @@ public class SecurityConfig {
                         )
                         .hasRole("ADMIN")
 
+                        .requestMatchers(
+                                "/api/issues/dashboard/attention"
+                        )
+                        .hasAnyRole("ADMIN", "DEPARTMENT")
+
                         // Admin assignment
                         .requestMatchers(
                                 "/api/issues/*/assign"
