@@ -20,6 +20,13 @@ public class IssueResponse {
     // Evidence image
     private String imageUrl;
 
+    private Integer citizenRating;
+    private String citizenFeedback;
+    private String feedbackSubmittedAt;
+    private String reopenRequestStatus;
+    private String reopenRequestMessage;
+    private String reopenRequestedAt;
+
     public IssueResponse() {}
 
     public IssueResponse(
@@ -50,6 +57,22 @@ public class IssueResponse {
         this.assignedTo = assignedTo;
         this.assignedToName = assignedToName;
         this.imageUrl = imageUrl;
+    }
+
+    public void setCitizenFeedback(
+            Integer citizenRating,
+            String citizenFeedback,
+            String feedbackSubmittedAt,
+            String reopenRequestStatus,
+            String reopenRequestMessage,
+            String reopenRequestedAt
+    ) {
+        this.citizenRating = citizenRating;
+        this.citizenFeedback = citizenFeedback;
+        this.feedbackSubmittedAt = feedbackSubmittedAt;
+        this.reopenRequestStatus = reopenRequestStatus;
+        this.reopenRequestMessage = reopenRequestMessage;
+        this.reopenRequestedAt = reopenRequestedAt;
     }
 
     public Long getId() {
@@ -102,5 +125,29 @@ public class IssueResponse {
 
     public String getImageUrl() {
         return imageUrl;
+    }
+
+    public Integer getCitizenRating() {
+        return citizenRating;
+    }
+
+    public String getCitizenFeedback() {
+        return citizenFeedback;
+    }
+
+    public String getFeedbackSubmittedAt() {
+        return feedbackSubmittedAt;
+    }
+
+    public String getReopenRequestStatus() {
+        return reopenRequestStatus;
+    }
+
+    public String getReopenRequestMessage() {
+        return reopenRequestMessage;
+    }
+
+    public String getReopenRequestedAt() {
+        return reopenRequestedAt;
     }
 }

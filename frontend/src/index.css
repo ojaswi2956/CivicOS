@@ -844,6 +844,18 @@ select {
     overflow-x: auto;
 }
 
+.issues-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    border-radius: 10px;
+}
+
+.issues-table-wrapper:focus-visible {
+    outline: 3px solid rgba(67, 86, 223, 0.35);
+    outline-offset: 3px;
+}
+
 .issues-table {
     width: 100%;
 

@@ -29,12 +29,15 @@ import com.civicos.api.dto.DepartmentStatsResponse;
 import com.civicos.api.dto.IssueResponse;
 import com.civicos.api.dto.IssueStatusHistoryResponse;
 import com.civicos.api.dto.RecurringIssueResponse;
+import com.civicos.api.dto.ReviewReopenRequest;
+import com.civicos.api.dto.SubmitIssueFeedbackRequest;
 import com.civicos.api.dto.UpdateIssueStatusRequest;
 import com.civicos.api.entity.Issue;
 import com.civicos.api.entity.IssueCategory;
 import com.civicos.api.entity.IssuePriority;
 import com.civicos.api.entity.IssueStatus;
 import com.civicos.api.entity.IssueStatusHistory;
+import com.civicos.api.entity.ReopenRequestStatus;
 import com.civicos.api.entity.Role;
 import com.civicos.api.entity.User;
 import com.civicos.api.exception.BadRequestException;
@@ -735,6 +738,117 @@ public class IssueService {
         return mapToResponse(savedIssue);
     }
 
+    @Transactional
+    public IssueResponse submitIssueFeedback(
+            Long issueId,
+            SubmitIssueFeedbackRequest request
+    ) {
+        User currentUser = getCurrentUser();
+        Issue issue = issueRepository.findById(issueId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Issue not found")
+                );
+
+        if (currentUser.getRole() != Role.CITIZEN
+                || !issue.getReportedBy().getId().equals(currentUser.getId())) {
+            throw new ForbiddenException(
+                    "You are not allowed to submit feedback for this issue"
+            );
+        }
+        if (issue.getStatus() != IssueStatus.RESOLVED) {
+            throw new BadRequestException(
+                    "Feedback can only be submitted for resolved issues"
+            );
+        }
+        if (issue.getReopenRequestStatus() == ReopenRequestStatus.PENDING) {
+            throw new BadRequestException(
+                    "A reopen request is already awaiting review"
+            );
+        }
+
+        issue.setCitizenRating(request.getRating());
+        issue.setCitizenFeedback(normalizeOptionalText(request.getComment()));
+        LocalDateTime now = LocalDateTime.now();
+        issue.setFeedbackSubmittedAt(now);
+
+        if (request.isRequestReopen()) {
+            issue.setReopenRequestStatus(ReopenRequestStatus.PENDING);
+            issue.setReopenRequestMessage(
+                    normalizeOptionalText(request.getReopenRequestMessage())
+            );
+            issue.setReopenRequestedAt(now);
+        } else if (issue.getReopenRequestStatus() != ReopenRequestStatus.PENDING) {
+            issue.setReopenRequestStatus(null);
+            issue.setReopenRequestMessage(null);
+            issue.setReopenRequestedAt(null);
+        }
+        issue.setUpdatedAt(now);
+        return mapToResponse(issueRepository.save(issue));
+    }
+
+    @Transactional
+    public IssueResponse reviewReopenRequest(
+            Long issueId,
+            ReviewReopenRequest request
+    ) {
+        User currentUser = getCurrentUser();
+        Issue issue = issueRepository.findById(issueId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Issue not found")
+                );
+
+        if (currentUser.getRole() == Role.DEPARTMENT
+                && (issue.getAssignedTo() == null
+                || !issue.getAssignedTo().getId().equals(currentUser.getId()))) {
+            throw new ForbiddenException(
+                    "You are not allowed to review this reopen request"
+            );
+        }
+        if (currentUser.getRole() != Role.ADMIN
+                && currentUser.getRole() != Role.DEPARTMENT) {
+            throw new ForbiddenException(
+                    "You are not allowed to review reopen requests"
+            );
+        }
+        if (issue.getReopenRequestStatus() != ReopenRequestStatus.PENDING) {
+            throw new BadRequestException(
+                    "This issue has no pending reopen request"
+            );
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (Boolean.TRUE.equals(request.getApproved())) {
+            if (issue.getStatus() != IssueStatus.RESOLVED) {
+                throw new BadRequestException(
+                        "Only resolved issues can be reopened"
+                );
+            }
+            issue.setStatus(IssueStatus.IN_PROGRESS);
+
+            IssueStatusHistory history = new IssueStatusHistory();
+            history.setIssue(issue);
+            history.setStatus(IssueStatus.IN_PROGRESS);
+            history.setChangedAt(now);
+            history.setChangedBy(currentUser);
+            issueStatusHistoryRepository.save(history);
+
+            issue.setReopenRequestStatus(ReopenRequestStatus.APPROVED);
+            issue.setFeedbackSubmittedAt(null);
+        } else {
+            issue.setReopenRequestStatus(ReopenRequestStatus.DECLINED);
+        }
+
+        issue.setUpdatedAt(now);
+        return mapToResponse(issueRepository.save(issue));
+    }
+
+    private String normalizeOptionalText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
     // =========================================================
     // ASSIGN ISSUE
     // =========================================================
@@ -967,7 +1081,7 @@ public class IssueService {
                     issue.getAssignedTo().getName();
         }
 
-        return new IssueResponse(
+        IssueResponse response = new IssueResponse(
                 issue.getId(),
                 issue.getTitle(),
                 issue.getDescription(),
@@ -982,5 +1096,20 @@ public class IssueService {
                 assignedToName,
                 issue.getImageUrl()
         );
+        response.setCitizenFeedback(
+                issue.getCitizenRating(),
+                issue.getCitizenFeedback(),
+                issue.getFeedbackSubmittedAt() != null
+                        ? issue.getFeedbackSubmittedAt().toString()
+                        : null,
+                issue.getReopenRequestStatus() != null
+                        ? issue.getReopenRequestStatus().name()
+                        : null,
+                issue.getReopenRequestMessage(),
+                issue.getReopenRequestedAt() != null
+                        ? issue.getReopenRequestedAt().toString()
+                        : null
+        );
+        return response;
     }
 }

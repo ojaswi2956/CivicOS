@@ -33,6 +33,8 @@ import com.civicos.api.dto.DepartmentStatsResponse;
 import com.civicos.api.dto.IssueResponse;
 import com.civicos.api.dto.IssueStatusHistoryResponse;
 import com.civicos.api.dto.RecurringIssueResponse;
+import com.civicos.api.dto.ReviewReopenRequest;
+import com.civicos.api.dto.SubmitIssueFeedbackRequest;
 import com.civicos.api.dto.UpdateIssueStatusRequest;
 import com.civicos.api.entity.IssueCategory;
 import com.civicos.api.entity.IssuePriority;
@@ -330,6 +332,26 @@ public class IssueController {
         );
 
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/feedback")
+    public ResponseEntity<IssueResponse> submitIssueFeedback(
+            @PathVariable Long id,
+            @Valid @RequestBody SubmitIssueFeedbackRequest request
+    ) {
+        return ResponseEntity.ok(
+                issueService.submitIssueFeedback(id, request)
+        );
+    }
+
+    @PatchMapping("/{id}/reopen-request")
+    public ResponseEntity<IssueResponse> reviewReopenRequest(
+            @PathVariable Long id,
+            @Valid @RequestBody ReviewReopenRequest request
+    ) {
+        return ResponseEntity.ok(
+                issueService.reviewReopenRequest(id, request)
+        );
     }
 
     // ============================================================

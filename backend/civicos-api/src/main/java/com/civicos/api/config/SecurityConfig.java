@@ -85,6 +85,16 @@ public class SecurityConfig {
                         )
                         .hasRole("ADMIN")
 
+                        .requestMatchers(
+                                "/api/issues/*/feedback"
+                        )
+                        .hasRole("CITIZEN")
+
+                        .requestMatchers(
+                                "/api/issues/*/reopen-request"
+                        )
+                        .hasAnyRole("ADMIN", "DEPARTMENT")
+
                         // Admin-only department officer list
                         .requestMatchers(
                                 "/api/admin/department-officers"

@@ -85,30 +85,16 @@ function Navbar({ role, currentPath, onNavigate, onLogout, theme, onToggleTheme 
     const navItems = [
         { label: t("Overview"), path: "/", icon: "overview" },
         { label: t("Manage Issues"), path: "/issues", icon: "issues" },
-        { label: t("Risk Radar"), path: "/#risk", icon: "risk" },
-        { label: t("Trust Score"), path: "/#trust", icon: "trust" },
-        { label: t("Hotspots"), path: "/#hotspots", icon: "hotspots" },
-        { label: t("Departments"), path: "/#departments", icon: "departments" },
+        ...(["ADMIN", "DEPARTMENT"].includes(role)
+            ? [{ label: t("Insights"), path: "/insights", icon: "risk" }]
+            : []),
+        ...(role === "ADMIN"
+            ? [{ label: t("Department officers"), path: "/departments", icon: "departments" }]
+            : []),
     ];
 
     const navigateTo = (path) => {
         setMenuOpen(false);
-
-        if (path === "/#risk" || path === "/#trust" ||
-            path === "/#hotspots" || path === "/#departments") {
-            onNavigate("/");
-            const section = path.split("#")[1];
-
-            window.setTimeout(() => {
-                document.getElementById(section)?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "start",
-                });
-            }, 100);
-
-            return;
-        }
-
         onNavigate(path);
     };
 
@@ -188,12 +174,7 @@ function Navbar({ role, currentPath, onNavigate, onLogout, theme, onToggleTheme 
 
                     <nav className="sidebar-navigation" aria-label={t("Main navigation")}>
                         {navItems.map((item) => {
-                            const active =
-                                item.path === "/"
-                                    ? currentPath === "/"
-                                    : item.path === "/issues"
-                                      ? currentPath === "/issues"
-                                      : false;
+                            const active = currentPath === item.path;
 
                             return (
                                 <button

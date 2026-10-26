@@ -5,6 +5,37 @@ import {
     useLocale,
 } from "../i18n/LocaleContext";
 
+function handleDialogKeyDown(event, onClose, isBusy = false) {
+    if (event.key === "Escape") {
+        event.preventDefault();
+        if (!isBusy) onClose();
+        return;
+    }
+
+    if (event.key !== "Tab") return;
+
+    const dialog = event.currentTarget.querySelector(".issue-modal");
+    const focusable = dialog?.querySelectorAll(
+        'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+    );
+
+    if (!focusable?.length) {
+        event.preventDefault();
+        dialog?.focus();
+        return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+}
+
 function Issues() {
     const { locale, t } = useLocale();
     const [issues, setIssues] = useState([]);
@@ -23,6 +54,14 @@ function Issues() {
 
     const [statusUpdating, setStatusUpdating] = useState(false);
     const [statusError, setStatusError] = useState("");
+    const [feedbackRating, setFeedbackRating] = useState(0);
+    const [feedbackComment, setFeedbackComment] = useState("");
+    const [requestReopen, setRequestReopen] = useState(false);
+    const [reopenRequestMessage, setReopenRequestMessage] = useState("");
+    const [feedbackSaving, setFeedbackSaving] = useState(false);
+    const [feedbackError, setFeedbackError] = useState("");
+    const [reviewingReopen, setReviewingReopen] = useState(false);
+    const [reopenReviewError, setReopenReviewError] = useState("");
 
     const [success, setSuccess] = useState("");
 
@@ -689,6 +728,8 @@ function Issues() {
         setRecurringError("");
         setRecurringLoading(false);
         setStatusError("");
+        setFeedbackError("");
+        setReopenReviewError("");
     };
 
     // =========================================================
@@ -791,6 +832,41 @@ function Issues() {
         setAssignedTo("");
         setAssignError("");
     };
+
+    const activeDialog = showCreateModal
+        ? "create"
+        : assigningIssue
+          ? "assign"
+          : selectedIssue
+            ? "details"
+            : null;
+
+    useEffect(() => {
+        if (!activeDialog) return undefined;
+
+        const previouslyFocused = document.activeElement;
+        const dialog = document.querySelector(
+            ".issue-modal-overlay .issue-modal"
+        );
+        const firstFocusable = dialog?.querySelector(
+            'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href]'
+        );
+
+        if (firstFocusable instanceof HTMLElement) {
+            firstFocusable.focus();
+        } else if (dialog instanceof HTMLElement) {
+            dialog.focus();
+        }
+
+        return () => {
+            if (
+                previouslyFocused instanceof HTMLElement &&
+                document.contains(previouslyFocused)
+            ) {
+                previouslyFocused.focus();
+            }
+        };
+    }, [activeDialog]);
 
     const handleAssign = async (event) => {
         event.preventDefault();
@@ -971,6 +1047,86 @@ function Issues() {
             );
         } finally {
             setStatusUpdating(false);
+        }
+    };
+
+    const handleFeedbackSubmit = async (event) => {
+        event.preventDefault();
+        if (!selectedIssue || feedbackSaving) return;
+
+        setFeedbackSaving(true);
+        setFeedbackError("");
+        setSuccess("");
+        try {
+            const response = await api.post(
+                `/issues/${selectedIssue.id}/feedback`,
+                {
+                    rating: feedbackRating,
+                    comment: feedbackComment,
+                    requestReopen,
+                    reopenRequestMessage,
+                },
+                { headers: getAuthHeaders() }
+            );
+            const updatedIssue = response.data;
+            setSelectedIssue(updatedIssue);
+            setIssues((currentIssues) =>
+                currentIssues.map((issue) =>
+                    issue.id === updatedIssue.id ? updatedIssue : issue
+                )
+            );
+            setSuccess(t("Thank you for sharing your feedback."));
+        } catch (err) {
+            console.error("Issue feedback submission error:", err);
+            setFeedbackError(
+                t(
+                    err.response?.data?.message ||
+                        "Unable to submit feedback. Please try again."
+                )
+            );
+        } finally {
+            setFeedbackSaving(false);
+        }
+    };
+
+    const handleReopenReview = async (approved) => {
+        if (!selectedIssue || reviewingReopen) return;
+
+        setReviewingReopen(true);
+        setReopenReviewError("");
+        setSuccess("");
+        try {
+            const response = await api.patch(
+                `/issues/${selectedIssue.id}/reopen-request`,
+                { approved },
+                { headers: getAuthHeaders() }
+            );
+            const updatedIssue = response.data;
+            setSelectedIssue(updatedIssue);
+            setIssues((currentIssues) =>
+                currentIssues.map((issue) =>
+                    issue.id === updatedIssue.id ? updatedIssue : issue
+                )
+            );
+            if (approved) {
+                await loadIssueHistory(updatedIssue.id);
+            }
+            setSuccess(
+                approved
+                    ? t("Reopen request approved. The issue is back in progress.")
+                    : t("Reopen request declined.")
+            );
+            await loadIssues();
+        } catch (err) {
+            console.error("Reopen request review error:", err);
+            setReopenReviewError(
+                t(
+                    err.response?.data?.message ||
+                        "Unable to review this reopen request. Please try again."
+                )
+            );
+        } finally {
+            setReviewingReopen(false);
         }
     };
 
@@ -1307,25 +1463,30 @@ function Issues() {
                             {getEmptyMessage()}
                         </div>
                     ) : (
-                        <div className="issues-table-wrapper">
+                        <div
+                            className="issues-table-wrapper"
+                            role="region"
+                            aria-label={t("Issue list")}
+                            tabIndex="0"
+                        >
                             <table className="issues-table">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
-                                        <th>{t("Title")}</th>
-                                        <th>{t("Category")}</th>
-                                        <th>{t("Priority")}</th>
-                                        <th>{t("Status")}</th>
+                                        <th scope="col">ID</th>
+                                        <th scope="col">{t("Title")}</th>
+                                        <th scope="col">{t("Category")}</th>
+                                        <th scope="col">{t("Priority")}</th>
+                                        <th scope="col">{t("Status")}</th>
 
                                         {currentRole !==
                                             "CITIZEN" && (
-                                            <th>
+                                            <th scope="col">
                                                 {t("Assigned Officer")}
                                             </th>
                                         )}
 
-                                        <th>{t("Created")}</th>
-                                        <th>{t("Actions")}</th>
+                                        <th scope="col">{t("Created")}</th>
+                                        <th scope="col">{t("Actions")}</th>
                                     </tr>
                                 </thead>
 
@@ -1367,6 +1528,12 @@ function Issues() {
                                                     >
                                                         {translateStatus(locale, issue.status)}
                                                     </span>
+                                                    {currentRole !== "CITIZEN" &&
+                                                        issue.reopenRequestStatus === "PENDING" && (
+                                                            <span className="issue-reopen-badge">
+                                                                {t("Reopen requested")}
+                                                            </span>
+                                                        )}
                                                 </td>
 
                                                 {currentRole !==
@@ -1405,6 +1572,16 @@ function Issues() {
                                                                 setIssueHistory(
                                                                     []
                                                                 );
+                                                                setFeedbackRating(
+                                                                    issue.citizenRating || 0
+                                                                );
+                                                                setFeedbackComment(
+                                                                    issue.citizenFeedback || ""
+                                                                );
+                                                                setRequestReopen(false);
+                                                                setReopenRequestMessage("");
+                                                                setFeedbackError("");
+                                                                setReopenReviewError("");
 
                                                                 loadIssueHistory(
                                                                     issue.id
@@ -1519,9 +1696,20 @@ function Issues() {
                     <div
                         className="issue-modal-overlay"
                         onClick={closeCreateModal}
+                        onKeyDown={(event) =>
+                            handleDialogKeyDown(
+                                event,
+                                closeCreateModal,
+                                creatingIssue
+                            )
+                        }
                     >
                         <div
                             className="issue-modal"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="issue-report-dialog-title"
+                            tabIndex="-1"
                             onClick={(event) =>
                                 event.stopPropagation()
                             }
@@ -1529,7 +1717,7 @@ function Issues() {
 
                             <div className="issue-modal-header">
                                 <div>
-                                    <h2>
+                                    <h2 id="issue-report-dialog-title">
                                         {t("Report New Issue")}
                                     </h2>
 
@@ -1900,17 +2088,24 @@ function Issues() {
                 <div
                     className="issue-modal-overlay"
                     onClick={closeIssueModal}
+                    onKeyDown={(event) =>
+                        handleDialogKeyDown(event, closeIssueModal)
+                    }
                 >
-                    <div
-                        className="issue-modal"
-                        onClick={(event) =>
-                            event.stopPropagation()
-                        }
+                <div
+                    className="issue-modal"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="issue-details-dialog-title"
+                    tabIndex="-1"
+                    onClick={(event) =>
+                        event.stopPropagation()
+                    }
                     >
 
                         <div className="issue-modal-header">
                             <div>
-                                <h2>
+                                <h2 id="issue-details-dialog-title">
                                     {t("Issue #")} #
                                     {
                                         selectedIssue.id
@@ -2143,6 +2338,203 @@ function Issues() {
                                     </ol>
                                 )}
                             </section>
+
+                            {currentRole === "CITIZEN" &&
+                                selectedIssue.status === "RESOLVED" && (
+                                    <section
+                                        className="issue-detail-section issue-feedback-section"
+                                        aria-labelledby="issue-feedback-title"
+                                    >
+                                        <h3 id="issue-feedback-title">
+                                            {t("How was this issue resolved?")}
+                                        </h3>
+                                        {selectedIssue.feedbackSubmittedAt &&
+                                        selectedIssue.reopenRequestStatus !== "DECLINED" ? (
+                                            <div className="issue-feedback-submitted">
+                                                <p>
+                                                    {t("Your feedback")}
+                                                    {selectedIssue.citizenRating
+                                                        ? ` · ${selectedIssue.citizenRating}/5`
+                                                        : ""}
+                                                </p>
+                                                {selectedIssue.citizenFeedback && (
+                                                    <blockquote>
+                                                        {selectedIssue.citizenFeedback}
+                                                    </blockquote>
+                                                )}
+                                                {selectedIssue.reopenRequestStatus && (
+                                                    <p role="status">
+                                                        {t("Reopen request")}:{" "}
+                                                        {translateStatus(
+                                                            locale,
+                                                            selectedIssue.reopenRequestStatus
+                                                        )}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <form onSubmit={handleFeedbackSubmit}>
+                                                {selectedIssue.reopenRequestStatus === "DECLINED" && (
+                                                    <p className="issue-reopen-decision" role="status">
+                                                        {t("Your reopen request was declined. You can update your feedback and submit another request.")}
+                                                    </p>
+                                                )}
+                                                <p>
+                                                    {t("Rate the completed work and optionally ask for a review if the issue remains unresolved.")}
+                                                </p>
+                                                <fieldset
+                                                    className="issue-rating"
+                                                    disabled={feedbackSaving}
+                                                >
+                                                    <legend>{t("Your rating")}</legend>
+                                                    <div>
+                                                        {[1, 2, 3, 4, 5].map((rating) => (
+                                                            <button
+                                                                key={rating}
+                                                                type="button"
+                                                                className={
+                                                                    rating <= feedbackRating
+                                                                        ? "issue-rating-star selected"
+                                                                        : "issue-rating-star"
+                                                                }
+                                                                aria-label={`${rating} ${t("stars")}`}
+                                                                aria-pressed={feedbackRating === rating}
+                                                                onClick={() => setFeedbackRating(rating)}
+                                                            >
+                                                                ★
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </fieldset>
+                                                <div className="filter-field">
+                                                    <label htmlFor="issue-feedback-comment">
+                                                        {t("Optional comment")}
+                                                    </label>
+                                                    <textarea
+                                                        id="issue-feedback-comment"
+                                                        value={feedbackComment}
+                                                        maxLength={2000}
+                                                        rows={3}
+                                                        onChange={(event) =>
+                                                            setFeedbackComment(event.target.value)
+                                                        }
+                                                        disabled={feedbackSaving}
+                                                    />
+                                                </div>
+                                                <label className="issue-reopen-checkbox">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={requestReopen}
+                                                        onChange={(event) =>
+                                                            setRequestReopen(event.target.checked)
+                                                        }
+                                                        disabled={
+                                                            feedbackSaving ||
+                                                            selectedIssue.reopenRequestStatus === "PENDING"
+                                                        }
+                                                    />
+                                                    <span>{t("Ask staff to review and reopen this issue")}</span>
+                                                </label>
+                                                {requestReopen && (
+                                                    <div className="filter-field">
+                                                        <label htmlFor="reopen-request-message">
+                                                            {t("Why does this issue need more work?")}
+                                                        </label>
+                                                        <textarea
+                                                            id="reopen-request-message"
+                                                            value={reopenRequestMessage}
+                                                            maxLength={1000}
+                                                            rows={2}
+                                                            onChange={(event) =>
+                                                                setReopenRequestMessage(event.target.value)
+                                                            }
+                                                            disabled={feedbackSaving}
+                                                        />
+                                                    </div>
+                                                )}
+                                                {feedbackError && (
+                                                    <div className="issues-error" role="alert">
+                                                        {feedbackError}
+                                                    </div>
+                                                )}
+                                                <button
+                                                    type="submit"
+                                                    className="primary-button"
+                                                    disabled={feedbackSaving || feedbackRating < 1}
+                                                >
+                                                    {feedbackSaving
+                                                        ? t("Submitting...")
+                                                        : t("Submit feedback")}
+                                                </button>
+                                            </form>
+                                        )}
+                                    </section>
+                                )}
+
+                            {currentRole !== "CITIZEN" &&
+                                (selectedIssue.reopenRequestStatus ||
+                                    selectedIssue.citizenRating ||
+                                    selectedIssue.citizenFeedback) && (
+                                    <section
+                                        className="issue-detail-section issue-feedback-section"
+                                        aria-labelledby="reopen-review-title"
+                                    >
+                                        <h3 id="reopen-review-title">
+                                            {t("Citizen feedback")}
+                                        </h3>
+                                        {selectedIssue.citizenRating && (
+                                            <p>
+                                                {t("Rating")}: {selectedIssue.citizenRating}/5
+                                            </p>
+                                        )}
+                                        {selectedIssue.citizenFeedback && (
+                                            <blockquote>{selectedIssue.citizenFeedback}</blockquote>
+                                        )}
+                                        <p>
+                                            {t("Reopen request")}:{" "}
+                                            <strong>
+                                                {translateStatus(
+                                                    locale,
+                                                    selectedIssue.reopenRequestStatus
+                                                )}
+                                            </strong>
+                                        </p>
+                                        {selectedIssue.reopenRequestMessage && (
+                                            <blockquote>
+                                                {selectedIssue.reopenRequestMessage}
+                                            </blockquote>
+                                        )}
+                                        {selectedIssue.reopenRequestStatus === "PENDING" && (
+                                            <>
+                                                {reopenReviewError && (
+                                                    <div className="issues-error" role="alert">
+                                                        {reopenReviewError}
+                                                    </div>
+                                                )}
+                                                <div className="issue-reopen-actions">
+                                                    <button
+                                                        type="button"
+                                                        className="primary-button"
+                                                        disabled={reviewingReopen}
+                                                        onClick={() => handleReopenReview(true)}
+                                                    >
+                                                        {reviewingReopen
+                                                            ? t("Saving...")
+                                                            : t("Approve and reopen")}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="secondary-button"
+                                                        disabled={reviewingReopen}
+                                                        onClick={() => handleReopenReview(false)}
+                                                    >
+                                                        {t("Decline request")}
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </section>
+                                )}
 
                             {/* =================================================
                                 EVIDENCE PHOTO
@@ -2515,10 +2907,21 @@ function Issues() {
                         onClick={
                             closeAssignModal
                         }
+                        onKeyDown={(event) =>
+                            handleDialogKeyDown(
+                                event,
+                                closeAssignModal,
+                                assigning
+                            )
+                        }
                     >
 
                         <div
                             className="issue-modal assign-modal"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="issue-assignment-dialog-title"
+                            tabIndex="-1"
                             onClick={(event) =>
                                 event.stopPropagation()
                             }
@@ -2527,7 +2930,7 @@ function Issues() {
                             <div className="issue-modal-header">
 
                                 <div>
-                                    <h2>
+                                    <h2 id="issue-assignment-dialog-title">
                                         {t("Assign Issue")} #
                                         {
                                             assigningIssue.id

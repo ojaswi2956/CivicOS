@@ -69,6 +69,21 @@ public class Issue {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    private Integer citizenRating;
+
+    @Column(columnDefinition = "TEXT")
+    private String citizenFeedback;
+
+    private LocalDateTime feedbackSubmittedAt;
+
+    @Enumerated(EnumType.STRING)
+    private ReopenRequestStatus reopenRequestStatus;
+
+    @Column(length = 1000)
+    private String reopenRequestMessage;
+
+    private LocalDateTime reopenRequestedAt;
+
     public Issue() {
     }
 
@@ -170,5 +185,55 @@ public class Issue {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Integer getCitizenRating() {
+        return citizenRating;
+    }
+
+    public void setCitizenRating(Integer citizenRating) {
+        this.citizenRating = citizenRating;
+    }
+
+    public String getCitizenFeedback() {
+        return citizenFeedback;
+    }
+
+    public void setCitizenFeedback(String citizenFeedback) {
+        this.citizenFeedback = citizenFeedback;
+    }
+
+    public LocalDateTime getFeedbackSubmittedAt() {
+        return feedbackSubmittedAt;
+    }
+
+    public void setFeedbackSubmittedAt(LocalDateTime feedbackSubmittedAt) {
+        this.feedbackSubmittedAt = feedbackSubmittedAt;
+    }
+
+    public ReopenRequestStatus getReopenRequestStatus() {
+        return reopenRequestStatus;
+    }
+
+    public void setReopenRequestStatus(
+            ReopenRequestStatus reopenRequestStatus
+    ) {
+        this.reopenRequestStatus = reopenRequestStatus;
+    }
+
+    public String getReopenRequestMessage() {
+        return reopenRequestMessage;
+    }
+
+    public void setReopenRequestMessage(String reopenRequestMessage) {
+        this.reopenRequestMessage = reopenRequestMessage;
+    }
+
+    public LocalDateTime getReopenRequestedAt() {
+        return reopenRequestedAt;
+    }
+
+    public void setReopenRequestedAt(LocalDateTime reopenRequestedAt) {
+        this.reopenRequestedAt = reopenRequestedAt;
     }
 }

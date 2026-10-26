@@ -683,6 +683,15 @@ function CitizenDashboard({ openIssues }) {
     const awaitingAction = stats.reported + stats.verified;
     const inProgressCount = stats.assigned + stats.inProgress;
     const completedCount = stats.resolved + stats.closed;
+    const feedbackDueCount = issues.filter(
+        (issue) =>
+            issue.status === "RESOLVED" &&
+            (!issue.feedbackSubmittedAt ||
+                issue.reopenRequestStatus === "DECLINED")
+    ).length;
+    const pendingReopenCount = issues.filter(
+        (issue) => issue.reopenRequestStatus === "PENDING"
+    ).length;
 
     const recentIssues = useMemo(
         () =>
@@ -715,6 +724,37 @@ function CitizenDashboard({ openIssues }) {
             </section>
 
             <AnalyticsError message={error} onRetry={loadMyIssues} />
+
+            {!loading && (feedbackDueCount > 0 || pendingReopenCount > 0) && (
+                <section
+                    className="citizen-follow-up-notice"
+                    aria-label={t("Issue follow-up")}
+                    aria-live="polite"
+                >
+                    <div>
+                        <strong>{t("Your input helps close the loop")}</strong>
+                        {feedbackDueCount > 0 && (
+                            <p>
+                                {feedbackDueCount}{" "}
+                                {t("resolved issues are waiting for your rating.")}
+                            </p>
+                        )}
+                        {pendingReopenCount > 0 && (
+                            <p>
+                                {pendingReopenCount}{" "}
+                                {t("reopen requests are awaiting staff review.")}
+                            </p>
+                        )}
+                    </div>
+                    <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={openIssues}
+                    >
+                        {t("Review my issues")}
+                    </button>
+                </section>
+            )}
 
             <section className="dashboard-section">
                 <SectionHeading
@@ -858,7 +898,7 @@ function CitizenDashboard({ openIssues }) {
 
 /* MAIN DASHBOARD */
 
-function Dashboard() {
+function Dashboard({ view = "overview" }) {
     const { t } = useLocale();
     const [role, setRole] = useState("");
     const [stats, setStats] = useState(null);
@@ -991,20 +1031,29 @@ function Dashboard() {
         ).toUpperCase();
 
         setRole(storedRole);
-        loadDashboard(storedRole);
-
-        if (storedRole === "ADMIN" || storedRole === "DEPARTMENT") {
-            loadRisk();
-            loadTrustScore(storedRole);
-            loadHotspots();
+        if (view === "overview") {
+            loadDashboard(storedRole);
+        } else {
+            setLoading(false);
         }
-    }, []);
+    }, [view]);
 
     useEffect(() => {
-        if (role === "ADMIN" || role === "DEPARTMENT") {
+        if (
+            view === "overview" &&
+            (role === "ADMIN" || role === "DEPARTMENT")
+        ) {
             loadAttention();
         }
-    }, [role, loadAttention]);
+        if (
+            view === "insights" &&
+            (role === "ADMIN" || role === "DEPARTMENT")
+        ) {
+            loadRisk();
+            loadTrustScore(role);
+            loadHotspots();
+        }
+    }, [role, view, loadAttention]);
 
     const openIssues = () => {
         window.location.href = "/issues";
@@ -1015,6 +1064,48 @@ function Dashboard() {
             <div className="dashboard-loading">
                 <div className="loading-spinner" />
                 <p>{t("Loading CivicOS dashboard...")}</p>
+            </div>
+        );
+    }
+
+    if (view === "insights") {
+        return (
+            <div className="dashboard admin-dashboard">
+                <main className="dashboard-content">
+                    <section className="admin-welcome">
+                        <div>
+                            <span className="welcome-eyebrow">
+                                {t("CIVICOS / INSIGHTS")}
+                            </span>
+                            <h2>{t("Insights")}</h2>
+                            <p>
+                                {t("Explore civic risk, department performance, and emerging infrastructure hotspots.")}
+                            </p>
+                        </div>
+                    </section>
+
+                    <div className="insights-grid">
+                        <CivicRiskPanel
+                            risks={risks}
+                            loading={riskLoading}
+                            error={riskError}
+                            onRetry={loadRisk}
+                        />
+                        <CivicTrustPanel
+                            trustScores={trustScores}
+                            loading={trustLoading}
+                            error={trustError}
+                            onRetry={() => loadTrustScore(role)}
+                            role={role}
+                        />
+                        <CivicHotspotsPanel
+                            hotspots={hotspots}
+                            loading={hotspotLoading}
+                            error={hotspotError}
+                            onRetry={loadHotspots}
+                        />
+                    </div>
+                </main>
             </div>
         );
     }
@@ -1330,28 +1421,6 @@ function Dashboard() {
 
                         {(role === "ADMIN" || role === "DEPARTMENT") && (
                             <>
-                                <CivicRiskPanel
-                                    risks={risks}
-                                    loading={riskLoading}
-                                    error={riskError}
-                                    onRetry={loadRisk}
-                                />
-
-                                <CivicTrustPanel
-                                    trustScores={trustScores}
-                                    loading={trustLoading}
-                                    error={trustError}
-                                    onRetry={() => loadTrustScore(role)}
-                                    role={role}
-                                />
-
-                                <CivicHotspotsPanel
-                                    hotspots={hotspots}
-                                    loading={hotspotLoading}
-                                    error={hotspotError}
-                                    onRetry={loadHotspots}
-                                />
-
                                 <section className="admin-quick-actions">
                                     <div>
                                         <h3>

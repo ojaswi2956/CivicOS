@@ -129,6 +129,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import Departments from "./pages/Departments";
 import Issues from "./pages/Issues";
 import Navbar from "./Navbar";
 import { LocaleProvider } from "./i18n/LocaleContext";
@@ -222,11 +223,13 @@ function AppContent() {
                             onNavigate={navigate}
                             onLogout={handleLogout}
                         />
+                    ) : path === "/insights" &&
+                      ["ADMIN", "DEPARTMENT"].includes(role) ? (
+                        <Dashboard view="insights" />
+                    ) : path === "/departments" && role === "ADMIN" ? (
+                        <Departments />
                     ) : (
-                        <Dashboard
-                            onNavigate={navigate}
-                            onLogout={handleLogout}
-                        />
+                        <Dashboard view="overview" />
                     )}
                 </>
             )}
