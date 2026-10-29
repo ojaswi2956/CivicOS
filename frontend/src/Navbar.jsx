@@ -78,7 +78,7 @@ function NavIcon({ name, size = 19 }) {
     return <svg {...common}>{icons[name] || null}</svg>;
 }
 
-function Navbar({ role, currentPath, onNavigate, onLogout, theme, onToggleTheme }) {
+function Navbar({ role, userName, currentPath, onNavigate, onLogout, theme, onToggleTheme }) {
     const { locale, t, toggleLocale } = useLocale();
     const [menuOpen, setMenuOpen] = useState(false);
 
@@ -127,6 +127,9 @@ function Navbar({ role, currentPath, onNavigate, onLogout, theme, onToggleTheme 
                 </button>
 
                 <div className="navbar-top-actions">
+                    {role === "CITIZEN" && userName && (
+                        <span className="navbar-user-name">{userName}</span>
+                    )}
                     <span className="navbar-role">
                         {translateStatus(locale, role || "CITIZEN")}
                     </span>

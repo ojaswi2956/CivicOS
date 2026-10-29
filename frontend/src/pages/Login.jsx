@@ -7,13 +7,18 @@ function Login({ onLoginSuccess, theme, onToggleTheme }) {
     const { locale, t, toggleLocale } = useLocale();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [name, setName] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [isRegistering, setIsRegistering] = useState(false);
     const [error, setError] = useState("");
+    const [success, setSuccess] = useState("");
     const [loading, setLoading] = useState(false);
 
     const handleLogin = async (event) => {
         event.preventDefault();
 
         setError("");
+        setSuccess("");
         setLoading(true);
 
         try {
@@ -27,9 +32,13 @@ function Login({ onLoginSuccess, theme, onToggleTheme }) {
 
             const token = response.data.token;
             const role = response.data.role;
+            const name = response.data.name;
 
             localStorage.setItem("civicos_token", token);
             localStorage.setItem("civicos_role", role);
+            if (name) {
+                localStorage.setItem("civicos_name", name);
+            }
 
             onLoginSuccess(token);
 
@@ -42,6 +51,46 @@ function Login({ onLoginSuccess, theme, onToggleTheme }) {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleRegister = async (event) => {
+        event.preventDefault();
+        setError("");
+        setSuccess("");
+
+        if (password !== confirmPassword) {
+            setError(t("Passwords do not match."));
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await api.post("/auth/register", {
+                name,
+                email,
+                password,
+            });
+            setIsRegistering(false);
+            setPassword("");
+            setConfirmPassword("");
+            setSuccess(t("Account created. Sign in with your email and password."));
+        } catch (registrationError) {
+            const responseData = registrationError.response?.data;
+            const validationErrors = Object.values(responseData?.details || {});
+            setError(
+                responseData?.message ||
+                    validationErrors.join(" ") ||
+                    t("Unable to create your account. Please try again.")
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const switchFormMode = () => {
+        setIsRegistering((registering) => !registering);
+        setError("");
+        setSuccess("");
     };
 
     return (
@@ -117,11 +166,32 @@ function Login({ onLoginSuccess, theme, onToggleTheme }) {
                         <span className="login-eyebrow">
                             {t("YOUR CIVICOS ACCOUNT")}
                         </span>
-                        <h2 id="login-title">{t("Welcome back")}</h2>
-                        <p>{t("Sign in to continue to your workspace.")}</p>
+                        <h2 id="login-title">
+                            {isRegistering ? t("Create your account") : t("Welcome back")}
+                        </h2>
+                        <p>
+                            {isRegistering
+                                ? t("Register as a citizen to report issues and track their progress.")
+                                : t("Sign in to continue to your workspace.")}
+                        </p>
                     </div>
 
-                    <form onSubmit={handleLogin}>
+                    <form onSubmit={isRegistering ? handleRegister : handleLogin}>
+                        {isRegistering && (
+                            <>
+                                <label htmlFor="register-name">{t("Full name")}</label>
+                                <input
+                                    id="register-name"
+                                    type="text"
+                                    value={name}
+                                    onChange={(event) => setName(event.target.value)}
+                                    autoComplete="name"
+                                    maxLength={120}
+                                    required
+                                />
+                            </>
+                        )}
+
                         <label htmlFor="login-email">{t("Email address")}</label>
                         <input
                             id="login-email"
@@ -139,22 +209,71 @@ function Login({ onLoginSuccess, theme, onToggleTheme }) {
                             type="password"
                             value={password}
                             onChange={(event) => setPassword(event.target.value)}
-                            placeholder={t("Enter your password")}
-                            autoComplete="current-password"
+                            placeholder={
+                                isRegistering
+                                    ? t("Create a password (at least 8 characters)")
+                                    : t("Enter your password")
+                            }
+                            autoComplete={isRegistering ? "new-password" : "current-password"}
+                            minLength={isRegistering ? 8 : undefined}
                             required
                         />
+
+                        {isRegistering && (
+                            <>
+                                <label htmlFor="register-confirm-password">
+                                    {t("Confirm password")}
+                                </label>
+                                <input
+                                    id="register-confirm-password"
+                                    type="password"
+                                    value={confirmPassword}
+                                    onChange={(event) =>
+                                        setConfirmPassword(event.target.value)
+                                    }
+                                    autoComplete="new-password"
+                                    minLength={8}
+                                    required
+                                />
+                            </>
+                        )}
 
                         {error && (
                             <p className="login-error" role="alert">
                                 {error}
                             </p>
                         )}
+                        {success && (
+                            <p className="login-success" role="status">
+                                {success}
+                            </p>
+                        )}
 
                         <button type="submit" disabled={loading}>
-                            {loading ? t("Signing in...") : t("Sign in")}
+                            {loading
+                                ? isRegistering
+                                    ? t("Creating account...")
+                                    : t("Signing in...")
+                                : isRegistering
+                                  ? t("Create account")
+                                  : t("Sign in")}
                             {!loading && <span aria-hidden="true">→</span>}
                         </button>
                     </form>
+
+                    <p className="login-mode-switch">
+                        {isRegistering
+                            ? t("Already have an account?")
+                            : t("New to CivicOS?")}
+                        <button
+                            type="button"
+                            className="login-mode-toggle"
+                            onClick={switchFormMode}
+                            disabled={loading}
+                        >
+                            {isRegistering ? t("Sign in") : t("Create account")}
+                        </button>
+                    </p>
 
                     <p className="login-support">
                         {t("Secure access for CivicOS users")}

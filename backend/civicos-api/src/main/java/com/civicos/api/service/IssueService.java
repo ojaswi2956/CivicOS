@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -25,8 +26,10 @@ import com.civicos.api.dto.CreateIssueRequest;
 import com.civicos.api.dto.DashboardAttentionIssueResponse;
 import com.civicos.api.dto.DashboardAttentionResponse;
 import com.civicos.api.dto.DashboardStatsResponse;
+import com.civicos.api.dto.DepartmentIssueSummaryResponse;
 import com.civicos.api.dto.DepartmentStatsResponse;
 import com.civicos.api.dto.IssueResponse;
+import com.civicos.api.dto.IssueMapPointResponse;
 import com.civicos.api.dto.IssueStatusHistoryResponse;
 import com.civicos.api.dto.RecurringIssueResponse;
 import com.civicos.api.dto.ReviewReopenRequest;
@@ -306,6 +309,16 @@ public class IssueService {
                 .collect(Collectors.toList());
     }
 
+    public Page<IssueMapPointResponse> getMapIssues(Pageable pageable) {
+        return issueRepository.findMapPoints(
+                PageRequest.of(
+                        pageable.getPageNumber(),
+                        pageable.getPageSize(),
+                        Sort.by(Sort.Direction.DESC, "createdAt")
+                )
+        );
+    }
+
     // =========================================================
     // GET ALL ISSUES
     // =========================================================
@@ -425,6 +438,11 @@ public class IssueService {
                 highPriority,
                 criticalPriority
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<DepartmentIssueSummaryResponse> getDepartmentIssueSummaries() {
+        return issueRepository.findDepartmentIssueSummaries();
     }
 
     @Transactional(readOnly = true)

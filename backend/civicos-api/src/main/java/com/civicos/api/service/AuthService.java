@@ -10,6 +10,7 @@ import com.civicos.api.dto.LoginRequest;
 import com.civicos.api.dto.RegisterRequest;
 import com.civicos.api.entity.Role;
 import com.civicos.api.entity.User;
+import com.civicos.api.exception.BadRequestException;
 import com.civicos.api.repository.UserRepository;
 
 @Service
@@ -32,7 +33,7 @@ public class AuthService {
     public AuthResponse register(RegisterRequest request) {
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email is already registered");
+            throw new BadRequestException("Email is already registered");
         }
 
         User user = new User();

@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.civicos.api.dto.DepartmentIssueSummaryResponse;
+import com.civicos.api.dto.IssueMapPointResponse;
 import com.civicos.api.entity.Issue;
 import com.civicos.api.entity.IssueCategory;
 import com.civicos.api.entity.IssuePriority;
@@ -16,6 +18,40 @@ import com.civicos.api.entity.IssueStatus;
 import com.civicos.api.entity.User;
 
 public interface IssueRepository extends JpaRepository<Issue, Long> {
+
+    @Query("""
+            SELECT new com.civicos.api.dto.IssueMapPointResponse(
+                issue.id,
+                issue.title,
+                issue.category,
+                issue.status,
+                issue.latitude,
+                issue.longitude,
+                issue.createdAt
+            )
+            FROM Issue issue
+            """)
+    Page<IssueMapPointResponse> findMapPoints(Pageable pageable);
+
+    @Query("""
+            SELECT new com.civicos.api.dto.DepartmentIssueSummaryResponse(
+                department.id,
+                department.name,
+                COUNT(issue),
+                SUM(CASE WHEN issue.status = com.civicos.api.entity.IssueStatus.REPORTED THEN 1 ELSE 0 END),
+                SUM(CASE WHEN issue.status = com.civicos.api.entity.IssueStatus.VERIFIED THEN 1 ELSE 0 END),
+                SUM(CASE WHEN issue.status = com.civicos.api.entity.IssueStatus.ASSIGNED THEN 1 ELSE 0 END),
+                SUM(CASE WHEN issue.status = com.civicos.api.entity.IssueStatus.IN_PROGRESS THEN 1 ELSE 0 END),
+                SUM(CASE WHEN issue.status = com.civicos.api.entity.IssueStatus.RESOLVED THEN 1 ELSE 0 END),
+                SUM(CASE WHEN issue.status = com.civicos.api.entity.IssueStatus.CLOSED THEN 1 ELSE 0 END)
+            )
+            FROM User department
+            LEFT JOIN Issue issue ON issue.assignedTo = department
+            WHERE department.role = com.civicos.api.entity.Role.DEPARTMENT
+            GROUP BY department.id, department.name
+            ORDER BY department.name
+            """)
+    List<DepartmentIssueSummaryResponse> findDepartmentIssueSummaries();
 
     // =========================================================
     // EXISTING ISSUE QUERIES

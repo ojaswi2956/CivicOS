@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "../api/axios";
 import {
     translateStatus,
     useLocale,
 } from "../i18n/LocaleContext";
+import IssueMap from "../components/LazyIssueMap";
 
 function handleDialogKeyDown(event, onClose, isBusy = false) {
     if (event.key === "Escape") {
@@ -107,6 +108,26 @@ function Issues() {
     const [totalElements, setTotalElements] = useState(0);
 
     const pageSize = 10;
+
+    const selectedIssueLocation = useMemo(() => {
+        const latitude = Number(issueForm.latitude);
+        const longitude = Number(issueForm.longitude);
+
+        if (
+            issueForm.latitude === "" ||
+            issueForm.longitude === "" ||
+            !Number.isFinite(latitude) ||
+            !Number.isFinite(longitude) ||
+            latitude < -90 ||
+            latitude > 90 ||
+            longitude < -180 ||
+            longitude > 180
+        ) {
+            return null;
+        }
+
+        return [latitude, longitude];
+    }, [issueForm.latitude, issueForm.longitude]);
 
     const getAuthHeaders = () => ({
         Authorization: `Bearer ${localStorage.getItem("civicos_token")}`
@@ -1800,6 +1821,27 @@ function Issues() {
                                             disabled={
                                                 creatingIssue
                                             }
+                                        />
+                                    </div>
+
+                                    <div className="filter-field issue-location-picker-field">
+                                        <div className="issue-location-picker-heading">
+                                            <strong>{t("Choose location on map")}</strong>
+                                            <span>
+                                                {t("Click the map to set the report location.")}
+                                            </span>
+                                        </div>
+
+                                        <IssueMap
+                                            selectedLocation={selectedIssueLocation}
+                                            onLocationSelect={([latitude, longitude]) =>
+                                                setIssueForm((current) => ({
+                                                    ...current,
+                                                    latitude: latitude.toFixed(6),
+                                                    longitude: longitude.toFixed(6)
+                                                }))
+                                            }
+                                            label={t("Choose issue location on map")}
                                         />
                                     </div>
 

@@ -70,7 +70,8 @@ public class SecurityConfig {
 
                         // Admin dashboard
                         .requestMatchers(
-                                "/api/issues/dashboard/stats"
+                                "/api/issues/dashboard/stats",
+                                "/api/issues/dashboard/departments"
                         )
                         .hasRole("ADMIN")
 

@@ -29,8 +29,10 @@ import com.civicos.api.dto.CivicTrustScoreResponse;
 import com.civicos.api.dto.CreateIssueRequest;
 import com.civicos.api.dto.DashboardAttentionResponse;
 import com.civicos.api.dto.DashboardStatsResponse;
+import com.civicos.api.dto.DepartmentIssueSummaryResponse;
 import com.civicos.api.dto.DepartmentStatsResponse;
 import com.civicos.api.dto.IssueResponse;
+import com.civicos.api.dto.IssueMapPointResponse;
 import com.civicos.api.dto.IssueStatusHistoryResponse;
 import com.civicos.api.dto.RecurringIssueResponse;
 import com.civicos.api.dto.ReviewReopenRequest;
@@ -51,6 +53,7 @@ import jakarta.validation.Valid;
 public class IssueController {
 
     private static final int MAX_PAGE_SIZE = 50;
+    private static final int MAP_PAGE_SIZE = 200;
 
     private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
             "createdAt",
@@ -105,6 +108,23 @@ public class IssueController {
     @GetMapping("/my")
     public ResponseEntity<List<IssueResponse>> getMyIssues() {
         return ResponseEntity.ok(issueService.getMyIssues());
+    }
+
+    @GetMapping("/map")
+    public ResponseEntity<Page<IssueMapPointResponse>> getMapIssues(
+            @RequestParam(defaultValue = "0") int page
+    ) {
+        if (page < 0) {
+            throw new IllegalArgumentException(
+                    "Page number cannot be negative"
+            );
+        }
+
+        return ResponseEntity.ok(
+                issueService.getMapIssues(
+                        PageRequest.of(page, MAP_PAGE_SIZE)
+                )
+        );
     }
 
     // ============================================================
@@ -200,6 +220,14 @@ public class IssueController {
     public ResponseEntity<DashboardStatsResponse> getDashboardStats() {
         return ResponseEntity.ok(
                 issueService.getDashboardStats()
+        );
+    }
+
+    @GetMapping("/dashboard/departments")
+    public ResponseEntity<List<DepartmentIssueSummaryResponse>>
+            getDepartmentIssueSummaries() {
+        return ResponseEntity.ok(
+                issueService.getDepartmentIssueSummaries()
         );
     }
 

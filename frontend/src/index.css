@@ -277,6 +277,51 @@ select {
     line-height: 1.5;
 }
 
+.login-success {
+    margin: -2px 0 18px;
+    padding: 11px 12px;
+    border: 1px solid #a7e4c2;
+    border-radius: 8px;
+    background: #f0fff6;
+    color: #16794b;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.login-mode-switch {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin: 20px 0 0;
+    color: var(--login-muted);
+    font-size: 12px;
+}
+
+.login-card .login-mode-toggle {
+    display: inline;
+    min-height: 0;
+    margin: 0;
+    padding: 2px 3px;
+    border: 0;
+    background: transparent;
+    color: var(--login-primary);
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: none;
+}
+
+.login-card .login-mode-toggle:hover:not(:disabled) {
+    transform: none;
+    text-decoration: underline;
+    box-shadow: none;
+}
+
+.login-card .login-mode-toggle:focus-visible {
+    outline-offset: 1px;
+}
+
 @media (max-width: 760px) {
     .login-page {
         align-items: flex-start;

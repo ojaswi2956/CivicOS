@@ -5,13 +5,23 @@ import {
     translateStatus,
     useLocale,
 } from "../i18n/LocaleContext";
+import IssueMap from "../components/LazyIssueMap";
 
-function StatCard({ title, value, description, accent }) {
+function StatCard({ title, value, description, accent, featured = false }) {
     const { t } = useLocale();
     return (
-        <div className="admin-stat-card">
+        <div
+            className={`admin-stat-card${featured ? " admin-stat-card-featured" : ""}`}
+        >
             <div className="stat-card-top">
-                <span className="stat-accent" style={{ background: accent }} />
+                <span
+                    className="stat-accent"
+                    style={{
+                        background: featured
+                            ? "rgba(255, 255, 255, 0.8)"
+                            : accent,
+                    }}
+                />
                 <span className="stat-label">{t(title)}</span>
             </div>
             <strong className="stat-value">{value ?? 0}</strong>
@@ -116,16 +126,207 @@ function AnalyticsError({ message, onRetry }) {
     );
 }
 
+function AdminRecentIssues({
+    issues,
+    loading,
+    error,
+    onRetry,
+    onOpenIssues,
+}) {
+    const { locale, t } = useLocale();
+
+    return (
+        <section className="dashboard-panel admin-recent-panel">
+            <SectionHeading
+                title="Recent Issues"
+                description="The latest infrastructure issues reported by residents."
+                action={
+                    <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={onOpenIssues}
+                    >
+                        {t("View All →")}
+                    </button>
+                }
+            />
+
+            {error ? (
+                <div className="dashboard-error" role="alert">
+                    <span>{error}</span>
+                    <button type="button" onClick={onRetry}>
+                        {t("Retry")}
+                    </button>
+                </div>
+            ) : loading ? (
+                <p className="analytics-message">
+                    {t("Loading recent issues...")}
+                </p>
+            ) : issues.length === 0 ? (
+                <p className="analytics-message">{t("No issues found.")}</p>
+            ) : (
+                <div className="admin-recent-table-wrap">
+                    <table className="admin-recent-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">{t("Issue")}</th>
+                                <th scope="col">{t("Category")}</th>
+                                <th scope="col">{t("Priority")}</th>
+                                <th scope="col">{t("Status")}</th>
+                                <th scope="col">{t("Assigned Officer")}</th>
+                                <th scope="col">{t("Reported")}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {issues.map((issue) => (
+                                <tr key={issue.id}>
+                                    <td>
+                                        <strong>{issue.title || t("Untitled issue")}</strong>
+                                        <small>#{issue.id}</small>
+                                    </td>
+                                    <td>{formatCategory(issue.category, locale)}</td>
+                                    <td>
+                                        <span
+                                            className={`priority-badge priority-${String(
+                                                issue.priority || ""
+                                            ).toLowerCase()}`}
+                                        >
+                                            {formatStatus(issue.priority, locale)}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span
+                                            className={`status-badge status-${String(
+                                                issue.status || ""
+                                            ).toLowerCase()}`}
+                                        >
+                                            {formatStatus(issue.status, locale)}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {issue.assignedToName || t("Unassigned")}
+                                    </td>
+                                    <td>{formatDate(issue.createdAt, locale)}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </section>
+    );
+}
+
+function DepartmentStatusSummary({
+    departments,
+    loading,
+    error,
+    onRetry,
+}) {
+    const { t } = useLocale();
+    const statusColumns = [
+        { key: "reported", label: "Reported" },
+        { key: "verified", label: "Verified" },
+        { key: "assigned", label: "Assigned" },
+        { key: "inProgress", label: "In Progress" },
+        { key: "resolved", label: "Resolved" },
+        { key: "closed", label: "Closed" },
+    ];
+
+    return (
+        <section className="dashboard-panel admin-recent-panel">
+            <SectionHeading
+                title="Department Status Summary"
+                description="Assigned issues grouped by department and current status."
+            />
+
+            {error ? (
+                <div className="dashboard-error" role="alert">
+                    <span>{error}</span>
+                    <button type="button" onClick={onRetry}>
+                        {t("Retry")}
+                    </button>
+                </div>
+            ) : loading ? (
+                <p className="analytics-message">
+                    {t("Loading department issue summary...")}
+                </p>
+            ) : departments.length === 0 ? (
+                <p className="analytics-message">
+                    {t("No department issue data available.")}
+                </p>
+            ) : (
+                <div className="admin-recent-table-wrap">
+                    <table className="admin-recent-table admin-department-table">
+                        <thead>
+                            <tr>
+                                <th scope="col">{t("Department")}</th>
+                                {statusColumns.map((column) => (
+                                    <th scope="col" key={column.key}>
+                                        {t(column.label)}
+                                    </th>
+                                ))}
+                                <th scope="col">{t("Total")}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {departments.map((department) => (
+                                <tr key={department.departmentId}>
+                                    <td>
+                                        <strong>{department.departmentName}</strong>
+                                    </td>
+                                    {statusColumns.map((column) => (
+                                        <td key={column.key}>
+                                            {department[column.key] ?? 0}
+                                        </td>
+                                    ))}
+                                    <td>
+                                        <strong>{department.totalIssues ?? 0}</strong>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </section>
+    );
+}
+
 function DashboardAttentionPanel({
     attention,
     loading,
     error,
+    priorityIssues,
+    priorityLoading,
+    priorityError,
     onRetry,
     onOpenIssues,
     role,
 }) {
     const { locale, t } = useLocale();
     const [expandedIssueId, setExpandedIssueId] = useState(null);
+    const priorityIssueIds = new Set(
+        priorityIssues.map((issue) => issue.id)
+    );
+    const attentionIssueIds = new Set(
+        (attention?.issues || []).map(({ issue }) => issue.id)
+    );
+    const displayIssues = [
+        ...(attention?.issues || []).map((item) => ({
+            ...item,
+            highPriority: priorityIssueIds.has(item.issue.id),
+        })),
+        ...priorityIssues
+            .filter((issue) => !attentionIssueIds.has(issue.id))
+            .map((issue) => ({
+                issue,
+                overdue: false,
+                unassigned: false,
+                highPriority: true,
+            })),
+    ];
+    const highPriorityCount = priorityIssues.length;
 
     return (
         <section className="dashboard-panel attention-panel">
@@ -154,20 +355,39 @@ function DashboardAttentionPanel({
                 }
             />
 
-            <div className="attention-summary">
+            <div
+                className={`attention-summary${role === "ADMIN" ? " attention-summary-admin" : ""}`}
+            >
                 <div className="attention-summary-item overdue">
                     <span>{t("Overdue over 7 days")}</span>
                     <strong>{loading ? "—" : attention?.overdueCount ?? 0}</strong>
                 </div>
                 {role === "ADMIN" && (
-                    <div className="attention-summary-item unassigned">
-                        <span>{t("Awaiting assignment")}</span>
-                        <strong>
-                            {loading ? "—" : attention?.unassignedCount ?? 0}
-                        </strong>
-                    </div>
+                    <>
+                        <div className="attention-summary-item unassigned">
+                            <span>{t("Awaiting assignment")}</span>
+                            <strong>
+                                {loading ? "—" : attention?.unassignedCount ?? 0}
+                            </strong>
+                        </div>
+                        <div className="attention-summary-item high-priority">
+                            <span>{t("High-priority issues shown")}</span>
+                            <strong>
+                                {priorityLoading ? "—" : highPriorityCount}
+                            </strong>
+                        </div>
+                    </>
                 )}
             </div>
+
+            {role === "ADMIN" && priorityError && (
+                <div className="dashboard-error" role="alert">
+                    <span>{priorityError}</span>
+                    <button type="button" onClick={onRetry}>
+                        {t("Retry")}
+                    </button>
+                </div>
+            )}
 
             {error ? (
                 <div className="dashboard-error" role="alert">
@@ -176,13 +396,13 @@ function DashboardAttentionPanel({
                         {t("Retry")}
                     </button>
                 </div>
-            ) : loading ? (
+            ) : loading && priorityLoading ? (
                 <p className="analytics-message">
                     {t("Loading attention items...")}
                 </p>
-            ) : attention?.issues?.length ? (
+            ) : displayIssues.length ? (
                 <ul className="attention-issue-list">
-                    {attention.issues.map(({ issue, overdue, unassigned }) => (
+                    {displayIssues.map(({ issue, overdue, unassigned, highPriority }) => (
                         <li className="attention-issue-item" key={issue.id}>
                             <div className="attention-issue-row">
                                 <div className="attention-issue-main">
@@ -202,6 +422,12 @@ function DashboardAttentionPanel({
                                     {unassigned && (
                                         <span className="attention-tag unassigned">
                                             {t("Awaiting assignment")}
+                                        </span>
+                                    )}
+                                    {highPriority && (
+                                        <span className="attention-tag high-priority">
+                                            {translateStatus(locale, issue.priority)}{" "}
+                                            {t("Priority")}
                                         </span>
                                     )}
                                     <button
@@ -642,6 +868,12 @@ function CitizenDashboard({ openIssues }) {
     const [issues, setIssues] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [mapIssues, setMapIssues] = useState([]);
+    const [mapIssueTotal, setMapIssueTotal] = useState(0);
+    const [mapPage, setMapPage] = useState(0);
+    const [mapPages, setMapPages] = useState(0);
+    const [mapLoading, setMapLoading] = useState(true);
+    const [mapError, setMapError] = useState("");
 
     const loadMyIssues = async () => {
         setLoading(true);
@@ -661,9 +893,46 @@ function CitizenDashboard({ openIssues }) {
         }
     };
 
+    const loadMapIssues = useCallback(async () => {
+        try {
+            const response = await api.get("/issues/map", {
+                params: { page: mapPage },
+            });
+            const data = response.data;
+            const items = Array.isArray(data?.content) ? data.content : [];
+
+            setMapIssues(items);
+            setMapIssueTotal(Number(data?.totalElements ?? items.length));
+            setMapPages(Number(data?.totalPages ?? 0));
+        } catch (err) {
+            console.error("Community issue map loading error:", err);
+            setMapError(
+                err.response?.data?.message ||
+                    t("Unable to load community issue locations.")
+            );
+        } finally {
+            setMapLoading(false);
+        }
+    }, [mapPage, t]);
+
+    const refreshMapIssues = () => {
+        setMapLoading(true);
+        setMapError("");
+        loadMapIssues();
+    };
+
+    const changeMapPage = (nextPage) => {
+        setMapLoading(true);
+        setMapPage(nextPage);
+    };
+
     useEffect(() => {
         loadMyIssues();
     }, []);
+
+    useEffect(() => {
+        loadMapIssues();
+    }, [loadMapIssues]);
 
     const stats = useMemo(() => {
         const count = (status) =>
@@ -795,6 +1064,72 @@ function CitizenDashboard({ openIssues }) {
                 </div>
             </section>
 
+            <section className="dashboard-panel citizen-map-panel">
+                <SectionHeading
+                    title="Community Issue Map"
+                    description="Explore recent public infrastructure reports by location."
+                    action={
+                        <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={refreshMapIssues}
+                            disabled={mapLoading}
+                        >
+                            {mapLoading ? t("Refreshing...") : t("Refresh ↻")}
+                        </button>
+                    }
+                />
+
+                {mapError && (
+                    <div className="analytics-error" role="alert">
+                        <span>{mapError}</span>
+                        <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={refreshMapIssues}
+                            disabled={mapLoading}
+                        >
+                            {t("Retry")}
+                        </button>
+                    </div>
+                )}
+
+                <IssueMap
+                    issues={mapIssues}
+                    label={t("Community issue locations")}
+                />
+
+                <p className="citizen-map-caption" aria-live="polite">
+                    {mapLoading
+                        ? t("Loading community issue locations...")
+                        : `${mapIssueTotal} ${t("mapped issues")}`}
+                </p>
+
+                {mapPages > 1 && (
+                    <div className="issue-map-pagination">
+                        <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => changeMapPage(mapPage - 1)}
+                            disabled={mapLoading || mapPage === 0}
+                        >
+                            {t("Previous")}
+                        </button>
+                        <span>
+                            {t("Page")} {mapPage + 1} {t("of")} {mapPages}
+                        </span>
+                        <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={() => changeMapPage(mapPage + 1)}
+                            disabled={mapLoading || mapPage >= mapPages - 1}
+                        >
+                            {t("Next")}
+                        </button>
+                    </div>
+                )}
+            </section>
+
             <section className="dashboard-panel citizen-recent-panel">
                 <SectionHeading
                     title="My Recent Reports"
@@ -903,11 +1238,26 @@ function Dashboard({ view = "overview" }) {
     const [role, setRole] = useState("");
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState("");
+
+    const [recentIssues, setRecentIssues] = useState([]);
+    const [recentIssuesLoading, setRecentIssuesLoading] = useState(false);
+    const [recentIssuesError, setRecentIssuesError] = useState("");
+
+    const [departmentSummaries, setDepartmentSummaries] = useState([]);
+    const [departmentSummariesLoading, setDepartmentSummariesLoading] =
+        useState(false);
+    const [departmentSummariesError, setDepartmentSummariesError] =
+        useState("");
 
     const [attention, setAttention] = useState(null);
     const [attentionLoading, setAttentionLoading] = useState(false);
     const [attentionError, setAttentionError] = useState("");
+
+    const [priorityIssues, setPriorityIssues] = useState([]);
+    const [priorityLoading, setPriorityLoading] = useState(false);
+    const [priorityError, setPriorityError] = useState("");
 
     const [risks, setRisks] = useState([]);
     const [riskLoading, setRiskLoading] = useState(false);
@@ -921,8 +1271,10 @@ function Dashboard({ view = "overview" }) {
     const [hotspotLoading, setHotspotLoading] = useState(false);
     const [hotspotError, setHotspotError] = useState("");
 
-    const loadDashboard = async (userRole) => {
-        setLoading(true);
+    const loadDashboard = async (userRole, silent = false) => {
+        if (!silent) {
+            setLoading(true);
+        }
         setError("");
 
         try {
@@ -942,7 +1294,9 @@ function Dashboard({ view = "overview" }) {
                     t("Unable to load dashboard data. Please try again.")
             );
         } finally {
-            setLoading(false);
+            if (!silent) {
+                setLoading(false);
+            }
         }
     };
 
@@ -961,6 +1315,112 @@ function Dashboard({ view = "overview" }) {
             );
         } finally {
             setAttentionLoading(false);
+        }
+    }, [t]);
+
+    const loadPriorityIssues = useCallback(async () => {
+        setPriorityLoading(true);
+        setPriorityError("");
+
+        try {
+            const priorities = ["CRITICAL", "HIGH"];
+            const activeStatuses = [
+                "REPORTED",
+                "VERIFIED",
+                "ASSIGNED",
+                "IN_PROGRESS",
+            ];
+            const responses = await Promise.all(
+                priorities.flatMap((priority) =>
+                    activeStatuses.map((status) =>
+                        api.get("/issues/all", {
+                            params: {
+                                page: 0,
+                                size: 10,
+                                sort: "createdAt,desc",
+                                priority,
+                                status,
+                            },
+                        })
+                    )
+                )
+            );
+            const issues = responses.flatMap((response) => {
+                const pageIssues = response.data?.content;
+                if (!Array.isArray(pageIssues)) {
+                    throw new Error("Unexpected priority issues response.");
+                }
+                return pageIssues;
+            });
+            setPriorityIssues(
+                priorities.flatMap((priority) =>
+                    issues
+                        .filter((issue) => issue.priority === priority)
+                        .sort(
+                            (first, second) =>
+                                new Date(second.createdAt).getTime() -
+                                new Date(first.createdAt).getTime()
+                        )
+                        .slice(0, 10)
+                )
+            );
+        } catch (err) {
+            console.error("Priority issues loading error:", err);
+            setPriorityError(
+                err.response?.data?.message ||
+                    t("Unable to load high-priority issues.")
+            );
+        } finally {
+            setPriorityLoading(false);
+        }
+    }, [t]);
+
+    const loadRecentIssues = useCallback(async () => {
+        setRecentIssuesLoading(true);
+        setRecentIssuesError("");
+
+        try {
+            const response = await api.get("/issues/all", {
+                params: {
+                    page: 0,
+                    size: 5,
+                    sort: "createdAt,desc",
+                },
+            });
+            const issues = response.data?.content;
+            if (!Array.isArray(issues)) {
+                throw new Error("Unexpected recent issues response.");
+            }
+            setRecentIssues(issues);
+        } catch (err) {
+            console.error("Recent issues loading error:", err);
+            setRecentIssuesError(
+                err.response?.data?.message ||
+                    t("Unable to load recent issues.")
+            );
+        } finally {
+            setRecentIssuesLoading(false);
+        }
+    }, [t]);
+
+    const loadDepartmentSummaries = useCallback(async () => {
+        setDepartmentSummariesLoading(true);
+        setDepartmentSummariesError("");
+
+        try {
+            const response = await api.get("/issues/dashboard/departments");
+            if (!Array.isArray(response.data)) {
+                throw new Error("Unexpected department summary response.");
+            }
+            setDepartmentSummaries(response.data);
+        } catch (err) {
+            console.error("Department issue summary loading error:", err);
+            setDepartmentSummariesError(
+                err.response?.data?.message ||
+                    t("Unable to load department issue summary.")
+            );
+        } finally {
+            setDepartmentSummariesLoading(false);
         }
     }, [t]);
 
@@ -1045,6 +1505,11 @@ function Dashboard({ view = "overview" }) {
         ) {
             loadAttention();
         }
+        if (view === "overview" && role === "ADMIN") {
+            loadRecentIssues();
+            loadDepartmentSummaries();
+            loadPriorityIssues();
+        }
         if (
             view === "insights" &&
             (role === "ADMIN" || role === "DEPARTMENT")
@@ -1053,10 +1518,39 @@ function Dashboard({ view = "overview" }) {
             loadTrustScore(role);
             loadHotspots();
         }
-    }, [role, view, loadAttention]);
+    }, [
+        role,
+        view,
+        loadAttention,
+        loadRecentIssues,
+        loadDepartmentSummaries,
+        loadPriorityIssues,
+    ]);
 
     const openIssues = () => {
         window.location.href = "/issues";
+    };
+
+    const refreshDashboard = async () => {
+        setRefreshing(true);
+        try {
+            await Promise.all([
+                loadDashboard(role, true),
+                loadAttention(),
+                loadRecentIssues(),
+                loadDepartmentSummaries(),
+                loadPriorityIssues(),
+            ]);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
+    const refreshAttentionItems = () => {
+        loadAttention();
+        if (role === "ADMIN") {
+            loadPriorityIssues();
+        }
     };
 
     if (loading) {
@@ -1129,6 +1623,18 @@ function Dashboard({ view = "overview" }) {
         totalAssigned > 0
             ? Math.round((departmentResolved / totalAssigned) * 100)
             : 0;
+    const issueStages = [
+        { label: "Reported", value: Number(stats?.reported || 0), color: "#e5a33b" },
+        { label: "Verified", value: Number(stats?.verified || 0), color: "#3988d8" },
+        { label: "Assigned", value: Number(stats?.assigned || 0), color: "#8c63d9" },
+        { label: "In Progress", value: Number(stats?.inProgress || 0), color: "#e18a42" },
+        { label: "Resolved", value: resolvedIssues, color: "#279b75" },
+        { label: "Closed", value: closedIssues, color: "#64748b" },
+    ];
+    const issueStageTotal = issueStages.reduce(
+        (total, stage) => total + stage.value,
+        0
+    );
 
     return (
         <div className="dashboard admin-dashboard">
@@ -1156,15 +1662,42 @@ function Dashboard({ view = "overview" }) {
                                 </p>
                             </div>
 
-                            {(role === "ADMIN" || role === "DEPARTMENT") && (
+                            {role === "ADMIN" && (
+                                <div className="admin-welcome-actions">
+                                    <button
+                                        type="button"
+                                        className="secondary-button dashboard-refresh-button"
+                                        onClick={refreshDashboard}
+                                        disabled={refreshing}
+                                        aria-label={t("Refresh dashboard")}
+                                        aria-busy={refreshing}
+                                    >
+                                        <span
+                                            className={`dashboard-refresh-icon${refreshing ? " is-refreshing" : ""}`}
+                                            aria-hidden="true"
+                                        >
+                                            ↻
+                                        </span>
+                                        {refreshing
+                                            ? t("Refreshing...")
+                                            : t("Refresh")}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="primary-button"
+                                        onClick={openIssues}
+                                    >
+                                        {t("Manage Issues")} →
+                                    </button>
+                                </div>
+                            )}
+
+                            {role === "DEPARTMENT" && (
                                 <button
                                     className="primary-button"
                                     onClick={openIssues}
                                 >
-                                    {role === "ADMIN"
-                                        ? t("Manage Issues")
-                                        : t("View My Assigned Issues")}{" "}
-                                    →
+                                    {t("View My Assigned Issues")} →
                                 </button>
                             )}
                         </section>
@@ -1173,17 +1706,6 @@ function Dashboard({ view = "overview" }) {
                             message={error}
                             onRetry={() => loadDashboard(role)}
                         />
-
-                        {["ADMIN", "DEPARTMENT"].includes(role) && (
-                            <DashboardAttentionPanel
-                                attention={attention}
-                                loading={attentionLoading}
-                                error={attentionError}
-                                onRetry={loadAttention}
-                                onOpenIssues={openIssues}
-                                role={role}
-                            />
-                        )}
 
                         {role === "ADMIN" && stats && (
                             <>
@@ -1198,12 +1720,13 @@ function Dashboard({ view = "overview" }) {
                                         }
                                     />
 
-                                    <div className="stats-grid">
+                                    <div className="stats-grid admin-stats-grid">
                                         <StatCard
                                             title="Total Issues"
                                             value={stats.totalIssues}
                                             description="All recorded issues"
                                             accent="#5367d9"
+                                            featured
                                         />
                                         <StatCard
                                             title="Reported"
@@ -1242,7 +1765,64 @@ function Dashboard({ view = "overview" }) {
                                             accent="#64748b"
                                         />
                                     </div>
+
+                                    <div className="status-distribution">
+                                        <div className="status-distribution-heading">
+                                            <strong>{t("Issue status distribution")}</strong>
+                                            <span>
+                                                {t("Current issues by workflow stage.")}
+                                            </span>
+                                        </div>
+                                        <div
+                                            className="status-distribution-bar"
+                                            role="img"
+                                            aria-label={t("Issue status distribution")}
+                                        >
+                                            {issueStages.map((stage) => (
+                                                <span
+                                                    key={stage.label}
+                                                    style={{
+                                                        width:
+                                                            issueStageTotal > 0
+                                                                ? `${(stage.value / issueStageTotal) * 100}%`
+                                                                : "0%",
+                                                        background: stage.color,
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                        <div className="status-distribution-legend">
+                                            {issueStages.map((stage) => (
+                                                <div
+                                                    className="status-distribution-item"
+                                                    key={stage.label}
+                                                >
+                                                    <span>
+                                                        <i
+                                                            style={{
+                                                                background: stage.color,
+                                                            }}
+                                                        />
+                                                        {t(stage.label)}
+                                                    </span>
+                                                    <strong>{stage.value}</strong>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </section>
+
+                                <DashboardAttentionPanel
+                                    attention={attention}
+                                    loading={attentionLoading}
+                                    error={attentionError}
+                                    priorityIssues={priorityIssues}
+                                    priorityLoading={priorityLoading}
+                                    priorityError={priorityError}
+                                    onRetry={refreshAttentionItems}
+                                    onOpenIssues={openIssues}
+                                    role={role}
+                                />
 
                                 <section className="dashboard-lower-grid">
                                     <div className="dashboard-panel">
@@ -1316,6 +1896,52 @@ function Dashboard({ view = "overview" }) {
                             </>
                         )}
 
+                        {role === "ADMIN" && !stats && (
+                            <DashboardAttentionPanel
+                                attention={attention}
+                                loading={attentionLoading}
+                                error={attentionError}
+                                priorityIssues={priorityIssues}
+                                priorityLoading={priorityLoading}
+                                priorityError={priorityError}
+                                onRetry={refreshAttentionItems}
+                                onOpenIssues={openIssues}
+                                role={role}
+                            />
+                        )}
+
+                        {role === "ADMIN" && (
+                            <>
+                                <DepartmentStatusSummary
+                                    departments={departmentSummaries}
+                                    loading={departmentSummariesLoading}
+                                    error={departmentSummariesError}
+                                    onRetry={loadDepartmentSummaries}
+                                />
+                                <AdminRecentIssues
+                                    issues={recentIssues}
+                                    loading={recentIssuesLoading}
+                                    error={recentIssuesError}
+                                    onRetry={loadRecentIssues}
+                                    onOpenIssues={openIssues}
+                                />
+                            </>
+                        )}
+
+                        {role === "DEPARTMENT" && !stats && (
+                            <DashboardAttentionPanel
+                                attention={attention}
+                                loading={attentionLoading}
+                                error={attentionError}
+                                priorityIssues={priorityIssues}
+                                priorityLoading={priorityLoading}
+                                priorityError={priorityError}
+                                onRetry={refreshAttentionItems}
+                                onOpenIssues={openIssues}
+                                role={role}
+                            />
+                        )}
+
                         {role === "DEPARTMENT" && stats && (
                             <>
                                 <section className="dashboard-section">
@@ -1356,6 +1982,18 @@ function Dashboard({ view = "overview" }) {
                                         />
                                     </div>
                                 </section>
+
+                                <DashboardAttentionPanel
+                                    attention={attention}
+                                    loading={attentionLoading}
+                                    error={attentionError}
+                                    priorityIssues={priorityIssues}
+                                    priorityLoading={priorityLoading}
+                                    priorityError={priorityError}
+                                    onRetry={refreshAttentionItems}
+                                    onOpenIssues={openIssues}
+                                    role={role}
+                                />
 
                                 <section className="dashboard-lower-grid">
                                     <div className="dashboard-panel completion-panel">

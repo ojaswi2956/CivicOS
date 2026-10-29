@@ -142,6 +142,9 @@ function AppContent() {
     const [role, setRole] = useState(
         localStorage.getItem("civicos_role")
     );
+    const [userName, setUserName] = useState(
+        localStorage.getItem("civicos_name") || ""
+    );
 
     const [path, setPath] = useState(window.location.pathname);
     const [theme, setTheme] = useState(
@@ -156,6 +159,7 @@ function AppContent() {
         const handleStorageChange = () => {
             setToken(localStorage.getItem("civicos_token"));
             setRole(localStorage.getItem("civicos_role"));
+            setUserName(localStorage.getItem("civicos_name") || "");
         };
 
         window.addEventListener("popstate", handlePopState);
@@ -178,15 +182,18 @@ function AppContent() {
     const handleLoginSuccess = (newToken) => {
         setToken(newToken || localStorage.getItem("civicos_token"));
         setRole(localStorage.getItem("civicos_role"));
+        setUserName(localStorage.getItem("civicos_name") || "");
         navigate("/");
     };
 
     const handleLogout = () => {
         localStorage.removeItem("civicos_token");
         localStorage.removeItem("civicos_role");
+        localStorage.removeItem("civicos_name");
 
         setToken(null);
         setRole(null);
+        setUserName("");
 
         navigate("/");
     };
@@ -211,6 +218,7 @@ function AppContent() {
                 <>
                     <Navbar
                         role={role}
+                        userName={userName}
                         currentPath={path}
                         onNavigate={navigate}
                         onLogout={handleLogout}
